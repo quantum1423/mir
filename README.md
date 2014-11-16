@@ -14,7 +14,7 @@ Mir :
 
 Mir is the *peaceful programming language*:
 - **Peace of mind for critical apps**: Synchronous actor communications means you don't have to worry about common issues like waiting for messages from dead actors, trying to broadcast "die now" messages using global channels, etc. 
-- **It comes in peace**: Mir supports a wide range of programming styles, from functional to procedural to object-oriented. It's easily extensible with powerful macros (without having Lisp parantheses involved!) to suit your specific application. It is *not* a heavily opinionated language like Go or Java.
+- **It comes in peace**: Mir supports a wide range of programming styles, from functional to procedural to object-oriented. It's easily extensible with powerful macros (without having Lisp parantheses involved!) to suit your specific application. It is *not* a heavily opinionated language like Go or Java, and it doesn't want to make war on your coding style.
 - **In peace with your existing ecosystem**: Mir is extremely portable, and operates easily with C. Programs require no heavy runtime, or installation into special directories, to work out of the box. Programming a tiny MIPS router? A Raspberry Pi-powered drone? Or just a regular boring Linux console app on the PC? Mir has you covered.
 
 And yes, Mir, the Russian word, also means "world". But we didn't want to steal Debian's tagline :P
