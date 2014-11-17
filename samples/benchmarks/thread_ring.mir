@@ -1,3 +1,11 @@
+module: benchmarks
+
+send = scheme::send
+recv = scheme::recv
+display = scheme::display
+cur_yarn = scheme::cur_yarn
+newline = scheme::newline
+
 make_ring = fun: [n] {
   if: n == 0 {
     cur_yarn()
