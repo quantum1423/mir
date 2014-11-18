@@ -18,3 +18,21 @@ Mir is the *peaceful programming language*:
 - **In peace with your existing ecosystem**: Mir is extremely portable, and operates easily with C. Programs require no heavy runtime, or installation into special directories, to work out of the box. Programming a tiny MIPS router? A Raspberry Pi-powered drone? Or just a regular boring Linux console app on the PC? Mir has you covered.
 
 And yes, Mir, the Russian word, also means "world". But we didn't want to steal Debian's tagline :P
+
+
+## To-do before first experimental release:
+
+- **Structs/objects**: done
+- **Strings**
+	- **Literals**: Half done; only escape code is \n
+	- **Object-oriented strings**
+- **Module system**
+	- **File-based import**: done
+	- **Faster compilation?**
+- **Proper byte-string support**
+- **Networking**
+- **C interface**
+- **Syntax**
+	- **List literals**
+	- **Persistent vector literals**
+	- **Sequence comprehensions**

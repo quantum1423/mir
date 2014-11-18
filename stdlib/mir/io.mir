@@ -1,0 +1,43 @@
+module: io
+
+// IO module.
+
+// Formatting
+
+Printf = scheme::printf
+
+Sprintf = scheme::format
+
+// Interfaces
+
+Reader = struct: Read
+Writer = struct: Write
+ReadWriter = struct: Read Write
+ReadWriteCloser = struct: Read Write Close
+
+// Standard input and output
+
+stdin_prt = scheme::current_input_port()
+stdout_prt = scheme::current_output_port()
+
+Stdio = {
+  rbuf = scheme::make_u8vector(4096)
+  
+  read = fun: [] {
+    num = scheme::read_subu8vector(rbuf, 0, 4096, stdin_prt, 1)
+    scheme::subu8vector(rbuf, 0, num)
+  }
+  
+  write = fun: [towr] {
+    scheme::write_subu8vector(towr, 0, scheme::u8vector_length(towr), stdout_prt)
+    scheme::force_output(stdout_prt)
+  }
+  
+  ReadWriter(read, write)
+}
+
+EOF = scheme::EOF
+
+IsEOF = fun: [x] {
+  scheme::eof_objectP(x)
+}

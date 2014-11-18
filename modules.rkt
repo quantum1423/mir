@@ -34,11 +34,15 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (mangle sexp prefix)
   (define rcr (lambda(x) (mangle x prefix)))
   (match sexp
+    [`(quote . ,rst) sexp]
     [`(TOPLEV . ,ss) (map rcr ss)]
     [`(,macname . ,rst) `(,macname . ,(map rcr rst))]
     [(? symbol? s)
      (match (symbol->string s)
-       [(string-append "scheme::" name) (string->symbol name)]
+       [(string-append "scheme::" name) (string->symbol 
+                                         (string-replace
+                                          (string-replace name "_" "-")
+                                          "P" "?"))]
        [(string-append mod "::" bind)
         (unless (char-upper-case? (string-ref bind 0))
           (error (format "Cannot import lowercase identifiers! ~a" s)))
@@ -75,7 +79,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (list-union a b)
   (define q (list->set a))
   (append a
-          (filter (λ(x) (set-member? q x)) b)))
+          (filter (λ(x) (not (set-member? q x))) b)))
 
 (define (list-union* x)
   (cond
@@ -92,19 +96,25 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
     [(empty? imports) (list file)]
     [else (define children (map build-dependencies
                                 (map (λ(x) (path->complete-path 
-                                            x 
+                                            (exppath x)
                                             (fname->dir file)))
                                      imports)))
-          (append (append* children) (list file))]))
+          (append (list-union* children) (list file))]))
 
 (define-runtime-path chicklib-loc "./stdlib/chick.scm")
+(define-runtime-path gamblib-loc "./stdlib/gambit.scm")
 (define-runtime-path mirstdlib-loc "./stdlib/main.scm")
+
+(define-runtime-path mirlibs-loc "./stdlib/mir")
 
 (define (get-tmp)
   (string-replace (path->string (make-temporary-file))
                   "-" "__"))
 
-(define USE_CHICKEN #f)
+(define (exppath x)
+  (string-replace x "~~" (path->string mirlibs-loc)))
+
+(define USE_CHICKEN #t)
 
 (define (build-file file (output (string-replace file ".mir" "")))
   (set! file (normalize-path file))
@@ -113,6 +123,10 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   
   (when USE_CHICKEN
     (write `(include ,(path->string chicklib-loc)) buff)
+    (newline buff))
+  
+  (unless USE_CHICKEN
+    (write `(include ,(path->string gamblib-loc)) buff)
     (newline buff))
   
   (write `(include ,(path->string mirstdlib-loc)) buff)

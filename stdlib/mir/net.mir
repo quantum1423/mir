@@ -1,0 +1,39 @@
+module: net
+
+import: "~~/io.mir"
+
+// TCP module. 
+
+// Listener interface. Use method Accept(), it should return a ReadWriteCloser.
+Listener = struct: Accept Close
+
+// TCP listen on a port
+TCPListen = fun: [host] {
+  server = scheme::tcp_listen_px(host)
+  
+  accept = fun: [] {
+    llprt = scheme::tcp_accept_px(server)
+    rbuf = scheme::make_bytes(8192)
+    read = fun: [] {
+      num = scheme::read_bytes_avail(rbuf, llprt)
+      if: num == 0 {
+        io::EOF
+      } else {
+        scheme::subbytes(rbuf, 0, num)
+      }
+    }
+    write = fun: [towr] {
+      scheme::write_bytes(towr, llprt)
+      scheme::force_output(llprt)
+    }
+    close = fun: [] {
+      scheme::close_port(llprt)
+    }
+    io::ReadWriteCloser(read, write, close)
+  }
+  
+  close = fun: [] {
+    scheme::tcp_close_px(server)
+  }
+  Listener(accept, close)
+}

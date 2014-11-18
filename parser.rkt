@@ -82,6 +82,7 @@
    
    (";" 'SEMI)
    ("," 'COMMA)
+   ("." 'DOT)
    
    ("{" 'LBRACE)
    ("}" 'RBRACE)
@@ -114,6 +115,7 @@
           ((NUM) $1)
           ((STR) $1)
           ((expr LPAREN commalst RPAREN) `(call ,$1 ,@$3))
+          ((expr DOT ID) `(call ,$1 (quote ,$3)))
           ((LBRACK commalst RBRACK) (cons 'list $2))
           
           ((LPAREN expr RPAREN) $2)
