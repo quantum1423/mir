@@ -12,7 +12,7 @@ make_ring = fun: [n] {
   } else {
     nxt = make_ring (n - 1)
     yarn: {
-      loop: {
+      loop: loop [] {
         send(nxt, recv())
         loop()
       }
