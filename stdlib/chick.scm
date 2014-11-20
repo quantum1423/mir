@@ -29,6 +29,10 @@
   (define-values (a b) (tcp-accept lst))
   (cons a b))
   
+(define (tcp-connect-px host port)
+  (define-values (a b) (tcp-connect host port))
+  (cons a b))
+  
 (define (tcp-close-px lst)
   (tcp-close lst))
   
@@ -39,13 +43,23 @@
     ((pair? port) ; TCP
                   (thread-wait-for-i/o! (port->fileno (car port)) #:input)
                   (define num (cadr (file-read (port->fileno (car port)) (string-length bts) bts)))
-                  num)))
+                  num)))              
                   
 (define (write-bytes bts port)
   (write-string bts #f (if (pair? port) (cdr port) port)))
   
 (define (subbytes bts a b)
   (substring bts a b))
+  
+(define (bytes . rst)
+  (list->string (map integer->char rst)))
+  
+(define bytes-length string-length)
+(define bytes2string identity)
+
+(define bytes? string?)
+
+(define (bytes-ref b i) (char->integer (string-ref b i)))
   
 (define (close-port x)
   (cond

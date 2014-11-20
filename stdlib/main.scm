@@ -1,5 +1,6 @@
-(declare (block))
-(declare (standard-bindings))
+;(declare (block))
+;(declare (standard-bindings))
+(declare (debug))
 
 (define-macro (mir-fun a b)
              `(lambda ,(cdr a) ,b))
@@ -23,18 +24,12 @@
   (define (proper-assoc x)
   (cond
     ((null? x) '())
-    (else (cons (cons (car x) (cadr x))
+    (else (cons (list (car x) (cadr x))
                       (proper-assoc (cddr x))))))
   `(let ,lname ,(proper-assoc (cdr alst)) ,a))
   
 (define (cur-yarn)
   (current-thread))
-  
-(define (recv)
-  (thread-receive))
-  
-(define (send a b)
-  (thread-send a b))
   
 (define (zip a b)
   (cond
@@ -64,15 +59,81 @@
 
 
 (define current-defer-thunks (make-parameter '()))
+(define current-recovers (make-parameter '()))
+
+(define (attempt-recover e funs)
+  (cond
+    ((null? funs) (raise e))
+    (else (let ([res ((car funs) e)])
+            (if (not (equal? res '__prop__)) res (attempt-recover e (cdr funs)))))))
+          
+(define (propagate)
+  '__prop__)
 
 (define-macro (mir-defer x)
   `(current-defer-thunks
     (cons (lambda() ,x) (current-defer-thunks))))
     
+(define-macro (mir-recover e x)
+  `(current-recovers
+    (cons (lambda ,(cdr e) ,x) (current-recovers))))
+    
 (define-macro (mir-guard x)
   `(parameterize ((current-defer-thunks '()))
     (with-exception-catcher
-      (lambda (e) (for-each (lambda(x) (x)) (current-defer-thunks)) (raise e))
+      (lambda (e) (for-each (lambda(x) (x)) (current-defer-thunks)) (attempt-recover e (current-recovers)))
       (lambda()
         ,x
         (for-each (lambda(x) (x)) (current-defer-thunks))))))
+        
+(define-macro (assign x y)
+  `(set! ,x ,y))
+  
+(define (make-semaphore n)
+  (vector n (make-mutex) (make-condition-variable)))
+
+(define (semaphore-wait! sema)
+  (mutex-lock! (vector-ref sema 1))
+  (let ((n (vector-ref sema 0)))
+    (if (> n 0)
+        (begin
+          (vector-set! sema 0 (- n 1))
+          (mutex-unlock! (vector-ref sema 1)))
+        (begin
+          (mutex-unlock! (vector-ref sema 1) (vector-ref sema 2))
+          (semaphore-wait! sema)))))
+
+(define (semaphore-signal-by! sema increment)
+  (mutex-lock! (vector-ref sema 1))
+  (let ((n (+ (vector-ref sema 0) increment)))
+    (vector-set! sema 0 n)
+    (if (> n 0)
+        (condition-variable-broadcast! (vector-ref sema 2)))
+    (mutex-unlock! (vector-ref sema 1))))
+    
+(define reply-sig (make-parameter #f))
+  
+(define (recv)
+  (define haha (thread-receive))
+  (reply-sig haha)
+  (vector-ref haha 0))
+  
+(define (reply x)
+  (define c (reply-sig))
+  (vector-set! c 2 x)
+  (semaphore-signal-by! (vector-ref c 1) 1))
+  
+(define (send a b)
+  (define sm (make-semaphore 0))
+  (define haha (vector b sm #f))
+  (thread-send a haha)
+  (semaphore-wait! sm)
+  (vector-ref haha 2))
+  
+(define (dict-ref d v)
+  (cond
+    ((bytes? d) (bytes-ref d v))
+    ((vector? d) (vector-ref d v))
+    (else (raise "dict-ref in trouble!"))))
+    
+(define-macro (mir-raise v) `(raise ,v))

@@ -41,6 +41,11 @@
   
 (define (tcp-accept-px lst)
   (read lst))
+
+(define (tcp-connect-px host port)
+  (open-tcp-client (list
+                      server-address: host
+                      port-number: port)))
   
 (define (tcp-close-px lst)
   (close-port lst))
@@ -54,4 +59,17 @@
 (define (write-bytes bts port)
   (write-subu8vector bts 0 (u8vector-length bts) port))
   
+(define (bytes-length x)
+  (u8vector-length x))
+  
+(define bytes u8vector)
+(define bytes? u8vector?)
+
+(define bytes-ref u8vector-ref)
+  
 (define subbytes subu8vector)
+
+(define bytes-append u8vector-append)
+
+(define (bytes2string bts)
+  (with-output-to-string (lambda() (write-bytes bts (current-output-port)))))

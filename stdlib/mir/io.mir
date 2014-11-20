@@ -23,8 +23,8 @@ stdout_prt = scheme::current_output_port()
 Stdio = {
   rbuf = scheme::make_u8vector(4096)
   
-  read = fun: [] {
-    num = scheme::read_subu8vector(rbuf, 0, 4096, stdin_prt, 1)
+  read = fun: [n] {
+    num = scheme::read_subu8vector(rbuf, 0, n, stdin_prt, 1)
     scheme::subu8vector(rbuf, 0, num)
   }
   
@@ -40,4 +40,35 @@ EOF = scheme::EOF
 
 IsEOF = fun: [x] {
   scheme::eof_objectP(x)
+}
+
+// Dump a to b
+
+CopyIO = fun: [in, out] {
+  loop: loop [] {
+    bts = in.Read(4096)
+    if: bts == io::EOF {
+      bts
+    } else {
+      out.Write(bts)
+      loop()
+    }
+  }
+}
+
+// ReadFull
+
+ReadFull = fun: [rdr, num] {
+  if: num == 0 {
+    scheme::make_bytes(0)
+  } else {
+    thing = rdr.Read(num)
+    if: IsEOF(thing,) {
+      scheme::raise("Unexpected EOF!")
+    } else if: (scheme::bytes_length(thing) == num) {
+      thing
+    } else {
+      scheme::bytes_append(thing, ReadFull(rdr, num - scheme::bytes_length(thing)))
+    }
+  }
 }

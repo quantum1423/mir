@@ -31,6 +31,14 @@ The dependency graph must be a DAG. We topologically sort the graph, then concat
 This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Scheme. If Mir ever chooses a "canonical" Scheme->C compiler, we might do something faster. This dumb approach generates a very large amount of code, and causes slow compile times. It does ensure, though, that no runtime dependencies exist.
 |#
 
+(define dont-mangle
+  (set "else" "length"
+       "append" "cons" "car" "cdr"
+       "send" "recv" "reply" "void"))
+
+(define special-member
+  (set "Append" "Map" "Filter"))
+
 (define (mangle sexp prefix)
   (define rcr (lambda(x) (mangle x prefix)))
   (match sexp
@@ -41,13 +49,14 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
      (match (symbol->string s)
        [(string-append "scheme::" name) (string->symbol 
                                          (string-replace
+                                          (string-replace
                                           (string-replace name "_" "-")
-                                          "P" "?"))]
+                                          "P" "?") "M" "!"))]
        [(string-append mod "::" bind)
         (unless (char-upper-case? (string-ref bind 0))
           (error (format "Cannot import lowercase identifiers! ~a" s)))
         s]
-       ["loop" s]
+       [(? (λ(x) (set-member? dont-mangle x)) q) s]
        [x (string->symbol
            (string-append prefix "::" x))])]
     [x x]))
@@ -94,11 +103,12 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (define-values (name mangled imports) (get-file-data file))
   (cond
     [(empty? imports) (list file)]
-    [else (define children (map build-dependencies
-                                (map (λ(x) (path->complete-path 
-                                            (exppath x)
-                                            (fname->dir file)))
-                                     imports)))
+    [else (define children 
+            (map build-dependencies
+                 (map (λ(x) (path->complete-path 
+                             (exppath x)
+                             (fname->dir file)))
+                      imports)))
           (append (list-union* children) (list file))]))
 
 (define-runtime-path chicklib-loc "./stdlib/chick.scm")
@@ -134,7 +144,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (for ([el deps])
     (define-values (name mangled imports) (get-file-data el))
     (fprintf buff "\n;; ~a\n" (path->string el))
-    (for-each (λ(x) (write x buff)
+    (for-each (λ(x) (pretty-write x buff)
                 (newline buff)) mangled))
   (close-output-port buff)
   (define xaxa (get-tmp))
@@ -150,7 +160,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (cond
     [USE_CHICKEN
      (system
-      (format "csc -O3 -o \"~a\" \"~a\"" output xaxa))]
+      (format "csc -optimize-leaf-routines -block -inline -inline-global -specialize -no-trace -no-lambda-info -clustering -lfa2 -o \"~a\" \"~a\"" output xaxa))]
     [else
      (system
       (format "gsc -exe -o \"~a\" \"~a\"" output xaxa))])

@@ -10,7 +10,8 @@
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
    SEMI COMMA DOT COLON
    + - * / ^ :=
-   == <
+   == < !=
+   HASH
    ))
 
 (define (desynid q)
@@ -38,6 +39,7 @@
 (define mir-lex
   (lexer
    ((eof) 'EOF)
+   (#\# 'HASH)
    ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
    ((:or #\tab
          #\space
@@ -79,6 +81,7 @@
    
    ("==" '==)
    ("<" '<)
+   ("!=" '!=)
    
    (";" 'SEMI)
    ("," 'COMMA)
@@ -115,8 +118,13 @@
           ((NUM) $1)
           ((STR) $1)
           ((expr LPAREN commalst RPAREN) `(call ,$1 ,@$3))
+          ((expr LBRACK expr RBRACK) `(dict-ref ,$1 ,$3))
           ((expr DOT ID) `(call ,$1 (quote ,$3)))
           ((LBRACK commalst RBRACK) (cons 'list $2))
+          ((HASH LBRACK commalst RBRACK) (cons 'vector $3))
+          ((HASH ID LBRACK commalst RBRACK) (cond
+                                              [(equal? $2 'b) (cons 'bytes $4)]
+                                              [else (error "Unrecognized vector type")]))
           
           ((LPAREN expr RPAREN) $2)
           ((SYNID synob) `(,$1 ,@$2))
@@ -127,6 +135,7 @@
           ((expr / expr) `(/ ,$1 ,$3))
           ((expr == expr) `(equal? ,$1 ,$3))
           ((expr < expr) `(< ,$1 ,$3))
+          ((expr != expr) `(not (equal? ,$1 ,$3)))
           )
     
     (semilst ((expr SEMI semilst) (cons $1 $3))
@@ -142,6 +151,30 @@
 
 (define (string->ast x)
   (define chugger (open-input-string x))
-  (mir-parse (lambda () (mir-lex chugger))))
+  (define q (identity (mir-parse (lambda () (mir-lex chugger)))))
+  q)
+
+(define (map-spare-last fun lst)
+  (define slst (take lst (sub1 (length lst))))
+  (append (map fun slst) (drop lst (sub1 (length lst)))))
+
+(define (postproc ast)
+  (match ast
+    [`(let () . ,rst) (define tomang (take rst (sub1 (length rst))))
+                      (define mnged 
+                        (map (λ(x) 
+                               (match x
+                                 [`(define ,a ,b) `(define ,a ,(postproc b))]
+                                 [`(mir-module ,_) x]
+                                 [`(mir-import ,_) x]
+                                 [else `(define ,(gensym 'throwaway) 
+                                          ,(postproc x))])) tomang))
+                      `(let () . ,(append mnged 
+                                          (map postproc (list 
+                                                         (first (reverse rst))))))]
+    [`(mir-module ,x) ast]
+    [`(mir-import ,x) ast]
+    [(cons a b) (map postproc ast)]
+    [x x]))
 
 (provide (all-defined-out))

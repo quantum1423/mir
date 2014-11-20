@@ -1,0 +1,34 @@
+module: conc
+
+// Concurrency constructs
+
+// Mutex lock
+mtx = struct: Acquire Release __impl__
+
+Mutex = fun: [] {
+  moo = scheme::make_mutex()
+  acq = fun: [] {
+    scheme::mutex_lockM(moo)
+  }
+  rel = fun: [] {
+    scheme::mutex_unlockM(moo)
+  }
+  mtx(acq, rel, moo)
+}
+
+// Condition variable
+cvar = struct: Signal Broadcast Wait
+
+ConditionVariable = fun: [] {
+  cv = scheme::make_condition_variable()
+  sig = fun: [] {
+    scheme::condition_variable_signalM(cv)
+  }
+  bro = fun: [] {
+    scheme::condition_variable_broadcastM(cv)
+  }
+  wat = fun: [lk] {
+    scheme::mutex_unlockM(lk.__impl__, cv)
+  }
+  cvar(sig, bro, wat)
+}

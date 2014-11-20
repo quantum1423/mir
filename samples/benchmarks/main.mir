@@ -1,9 +1,0 @@
-module: benchmarks
-import: "fibo.mir"
-import: "thread_ring.mir"
-
-scheme::display("Ring message (1000 threads, 1000 messages)\n")
-time: ring(1000,1000)
-
-scheme::display("\n\nFibonacci (n = 40)\n")
-time: fib(40,)

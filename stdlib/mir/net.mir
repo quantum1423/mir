@@ -13,8 +13,8 @@ TCPListen = fun: [host] {
   
   accept = fun: [] {
     llprt = scheme::tcp_accept_px(server)
-    rbuf = scheme::make_bytes(8192)
-    read = fun: [] {
+    read = fun: [n] {
+      rbuf = scheme::make_bytes(n)
       num = scheme::read_bytes_avail(rbuf, llprt)
       if: num == 0 {
         io::EOF
@@ -36,4 +36,27 @@ TCPListen = fun: [host] {
     scheme::tcp_close_px(server)
   }
   Listener(accept, close)
+}
+
+// TCP connect
+TCPConnect = fun: [host, port] {
+  llprt = scheme::tcp_connect_px(host, port)
+  
+  read = fun: [n] {
+    rbuf = scheme::make_bytes(n)
+    num = scheme::read_bytes_avail(rbuf, llprt)
+    if: num == 0 {
+      io::EOF
+    } else {
+      scheme::subbytes(rbuf, 0, num)
+    }
+  }
+  write = fun: [towr] {
+    scheme::write_bytes(towr, llprt)
+    scheme::force_output(llprt)
+  }
+  close = fun: [] {
+    scheme::close_port(llprt)
+  }
+  io::ReadWriteCloser(read, write, close)
 }

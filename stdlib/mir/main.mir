@@ -1,0 +1,5 @@
+module: mir
+
+import: "~~/io.mir"
+import: "~~/string.mir"
+import: "~~/net.mir"
