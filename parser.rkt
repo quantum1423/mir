@@ -119,7 +119,7 @@
           ((STR) $1)
           ((expr LPAREN commalst RPAREN) `(call ,$1 ,@$3))
           ((expr LBRACK expr RBRACK) `(dict-ref ,$1 ,$3))
-          ((expr DOT ID) `(call ,$1 (quote ,$3)))
+          ((expr DOT ID) `(get-member ,$1 ,$3))
           ((LBRACK commalst RBRACK) (cons 'list $2))
           ((HASH LBRACK commalst RBRACK) (cons 'vector $3))
           ((HASH ID LBRACK commalst RBRACK) (cond

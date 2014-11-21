@@ -42,6 +42,10 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (mangle sexp prefix)
   (define rcr (lambda(x) (mangle x prefix)))
   (match sexp
+    [`(get-member ,expr ,id) (cond
+                               [(set-member? special-member (symbol->string id))
+                                `(,(string->symbol (string-append "SM" (symbol->string id))) ,expr)]
+                               [else `(call ,(rcr expr) (quote ,id))])]
     [`(quote . ,rst) sexp]
     [`(TOPLEV . ,ss) (map rcr ss)]
     [`(,macname . ,rst) `(,macname . ,(map rcr rst))]
