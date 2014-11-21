@@ -151,30 +151,11 @@
 
 (define (string->ast x)
   (define chugger (open-input-string x))
-  (define q (identity (mir-parse (lambda () (mir-lex chugger)))))
+  (define q (mir-parse (lambda () (mir-lex chugger))))
   q)
 
 (define (map-spare-last fun lst)
   (define slst (take lst (sub1 (length lst))))
   (append (map fun slst) (drop lst (sub1 (length lst)))))
-
-(define (postproc ast)
-  (match ast
-    [`(let () . ,rst) (define tomang (take rst (sub1 (length rst))))
-                      (define mnged 
-                        (map (λ(x) 
-                               (match x
-                                 [`(define ,a ,b) `(define ,a ,(postproc b))]
-                                 [`(mir-module ,_) x]
-                                 [`(mir-import ,_) x]
-                                 [else `(define ,(gensym 'throwaway) 
-                                          ,(postproc x))])) tomang))
-                      `(let () . ,(append mnged 
-                                          (map postproc (list 
-                                                         (first (reverse rst))))))]
-    [`(mir-module ,x) ast]
-    [`(mir-import ,x) ast]
-    [(cons a b) (map postproc ast)]
-    [x x]))
 
 (provide (all-defined-out))

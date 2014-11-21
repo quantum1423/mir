@@ -1,7 +1,11 @@
-    
+(declare (debug))
+(declare (standard-bindings))
+(declare (block))
+(declare (debug-location))
+
 (define printf
-  (lambda (format . args)
-    (let ((len (string-length format)))
+  (lambda (fmtstr . args)
+    (let ((len (string-length fmtstr)))
       (let loop ((i 0) (args args))
         (let ((output
                 (lambda (fn)
@@ -12,9 +16,9 @@
                   (fn)
                   (loop (+ i 2) args))))
           (if (>= i len) #t
-            (let ((c (string-ref format i)))
+            (let ((c (string-ref fmtstr i)))
               (if (char=? c #\~)
-                (case (string-ref format (+ i 1))
+                (case (string-ref fmtstr (+ i 1))
                   ((#\s) (output write))
                   ((#\a) (output display))
                   ((#\c) (output write-char))
@@ -22,8 +26,8 @@
                   ((#\~) (outputc (lambda () (write-char #\~))))
                   (else
                     (write
-                      "error in eopl:printf: unknown format character ")
-                    (write-char  (string-ref format (+ i 1)))
+                      "error in eopl:printf: unknown fmtstr character ")
+                    (write-char  (string-ref fmtstr (+ i 1)))
                     (write-char #\newline)
                     (error "WTF!")))
                 (begin
@@ -32,7 +36,7 @@
                   
                   
 (define (format . argz)
-  (with-output-to-string
+  (with-output-to-string '()
     (lambda()
       (apply printf argz))))
       
@@ -71,5 +75,8 @@
 
 (define bytes-append u8vector-append)
 
+;; Horrible, slow hack :(
 (define (bytes2string bts)
-  (with-output-to-string (lambda() (write-bytes bts (current-output-port)))))
+  (list->string
+    (map integer->char
+      (u8vector->list bts))))

@@ -1,7 +1,3 @@
-;(declare (block))
-;(declare (standard-bindings))
-(declare (debug))
-
 (define-macro (mir-fun a b)
              `(lambda ,(cdr a) ,b))
 

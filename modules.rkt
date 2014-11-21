@@ -44,7 +44,9 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (match sexp
     [`(get-member ,expr ,id) (cond
                                [(set-member? special-member (symbol->string id))
-                                `(,(string->symbol (string-append "SM" (symbol->string id))) ,expr)]
+                                `(,(string->symbol 
+                                    (string-append "SM" 
+                                                   (symbol->string id))) ,expr)]
                                [else `(call ,(rcr expr) (quote ,id))])]
     [`(quote . ,rst) sexp]
     [`(TOPLEV . ,ss) (map rcr ss)]
@@ -65,6 +67,25 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
            (string-append prefix "::" x))])]
     [x x]))
 
+(define (postproc ast)
+  (match ast
+    [`(let () . ,rst) (define alldefs
+                        (filter identity
+                                 (for/list ([el rst])
+                                   (match el
+                                     [`(define ,a ,b) a]
+                                     [_ #f]))))
+                      `(let ,(for/list ([x alldefs])
+                               (list x '(void)))
+                         ,@(for/list ([x rst])
+                            (match x
+                              [`(define ,a ,b) `(set! ,a ,(postproc b))]
+                              [x (postproc x)])))]
+    [`(mir-module ,x) ast]
+    [`(mir-import ,x) ast]
+    [(cons a b) (map postproc ast)]
+    [x x]))
+
 (define (get-metadata _sexp)
   (match _sexp
     [`(let () (mir-module ,name) . ,sexp)
@@ -74,7 +95,8 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
          (match p
            [(cons `(mir-import ,path)
                   rst) (loop rst (set-add x path))]
-           [ss (values (mangle `(TOPLEV . ,ss) (symbol->string name)) x)])))
+           [ss (values (postproc
+                        (mangle `(TOPLEV . ,ss) (symbol->string name))) x)])))
      (values name mangled (set->list imports))]))
 
 
@@ -128,7 +150,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (exppath x)
   (string-replace x "~~" (path->string mirlibs-loc)))
 
-(define USE_CHICKEN #t)
+(define USE_CHICKEN #f)
 
 (define (build-file file (output (string-replace file ".mir" "")))
   (set! file (normalize-path file))
@@ -164,7 +186,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (cond
     [USE_CHICKEN
      (system
-      (format "csc -optimize-leaf-routines -block -inline -inline-global -specialize -no-trace -no-lambda-info -clustering -lfa2 -o \"~a\" \"~a\"" output xaxa))]
+      (format "csc -optimize-leaf-routines -block -inline -inline-global -no-trace -no-lambda-info -lfa2 -o \"~a\" \"~a\"" output xaxa))]
     [else
      (system
       (format "gsc -exe -o \"~a\" \"~a\"" output xaxa))])
