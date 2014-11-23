@@ -9,7 +9,7 @@
   (EOF
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
    SEMI COMMA DOT COLON
-   + - * / ^ :=
+   + - * / ^ = <-
    == < !=
    HASH
    ))
@@ -77,7 +77,9 @@
    ("*" '*)
    ("/" '/)
    ("^" '^)
-   ("=" ':=)
+   
+   ("=" '=)
+   ("<-" '<-)
    
    ("==" '==)
    ("<" '<)
@@ -104,7 +106,8 @@
    (error (lambda (a b c)
             (error (format "Parse error: ~v ~v ~v" a b c))))
    
-   (precs (right :=)
+   (precs (right =)
+          (right <-)
           (left == <)
           (left SYNID)
           (left - +)
@@ -112,7 +115,8 @@
    
    (grammar
     (start ((semilst) `(let() ,@$1)))
-    (expr ((ID := expr) `(define ,$1 ,$3))
+    (expr ((ID = expr) `(define ,$1 ,$3))
+          ((ID <- expr) `(assign ,$1 ,$3))
           ((ID) $1)
           ((LBRACE semilst RBRACE) `(let () ,@$2))
           ((NUM) $1)

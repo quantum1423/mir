@@ -6,6 +6,7 @@ import: "~~/io.mir"
 
 handle = fun: [client] {
   defer: client.Close()
+  recover: [e] io::Printf("Error while handling connection: ~a\n", e)
   
   // greeting: 0x05 num (auth methods)
   greeting = io::ReadFull(client, 2)
@@ -30,20 +31,18 @@ handle = fun: [client] {
   // Read the destination address
   if: conreq1[3] == 1 {
     addr = io::ReadFull(client, 4)
-    scheme::assign(host, io::Sprintf("~a.~a.~a.~a", addr[0], addr[1], addr[2], addr[3]))
+    host <- io::Sprintf("~a.~a.~a.~a", addr[0], addr[1], addr[2], addr[3])
   } else if: conreq1[3] == 3 {
     adlen = io::ReadFull(client, 1)[0]
     adbts = io::ReadFull(client, adlen)
-    scheme::assign(host, scheme::bytes2string(adbts))
+    host <- scheme::bytes2string(adbts)
   } else {
     raise: "WTF!"
   }
-  scheme::assign(pb, io::ReadFull(client, 2))
-  scheme::assign(port, pb[0] * 256 + pb[1])
+  pb <- io::ReadFull(client, 2)
+  port <- pb[0] * 256 + pb[1]
   io::Printf("Tunneling: ~a:~a\n", host, port)
   
-  // Say ok (FIXME)
-  client.Write(#b[5, 0, 0, 1, 0, 0, 0, 0, 0, 0])
   
   // Do le conn
   remconn = net::TCPConnect(host, port)
@@ -52,7 +51,10 @@ handle = fun: [client] {
     recover: [e] void()
     io::CopyIO(client, remconn)
   }
-  recover: [e] void()
+  
+  // Say ok
+  client.Write(#b[5, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+  
   io::CopyIO(remconn, client)
 }
 

@@ -83,7 +83,9 @@
         (for-each (lambda(x) (x)) (current-defer-thunks))))))
         
 (define-macro (assign x y)
-  `(set! ,x ,y))
+  `(begin
+    (set! ,x ,y)
+    ,x))
   
 (define (make-semaphore n)
   (vector n (make-mutex) (make-condition-variable)))
@@ -130,6 +132,25 @@
   (cond
     ((bytes? d) (bytes-ref d v))
     ((vector? d) (vector-ref d v))
-    (else (raise "dict-ref in trouble!"))))
+    (else ((d 'Ref) v))))
     
 (define-macro (mir-raise v) `(raise ,v))
+
+
+;; Generic listy methods
+
+(define (SMAppend a)
+  (cond
+    ((list? a) (lambda (x) (append a x)))
+    ((vector? a) (lambda (x) (vector-append a x)))
+    ((bytes? a) (lambda (x) (bytes-append a x)))
+    ((string? a) (lambda (x) (string-append a x)))
+    (else (a 'Append))))
+    
+(define (SMLength a)
+  (cond
+    ((list? a) (lambda () (length a)))
+    ((vector? a) (lambda () (vector-length a)))
+    ((bytes? a) (lambda () (bytes-length a)))
+    ((string? a) (lambda () (string-length a)))
+    (else (a 'Length))))

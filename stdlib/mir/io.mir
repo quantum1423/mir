@@ -15,26 +15,35 @@ Writer = struct: Write
 ReadWriter = struct: Read Write
 ReadWriteCloser = struct: Read Write Close
 
+// Wrapper for Scheme ports
+
+SchemeToRWC = fun: [in, out] {
+  read = fun: [n] {
+    rbuf = scheme::make_bytes(n)
+    num = scheme::read_bytes_avail(rbuf, in)
+    if: num == 0 {
+      io::EOF
+    } else {
+      scheme::subbytes(rbuf, 0, num)
+    }
+  }
+  write = fun: [towr] {
+    scheme::write_bytes(towr, out)
+    scheme::force_output(out)
+  }
+  close = fun: [] {
+    scheme::close_port(out)
+    scheme::close_port(in)
+  }
+  ReadWriteCloser(read, write, close)
+}
+
 // Standard input and output
 
 stdin_prt = scheme::current_input_port()
 stdout_prt = scheme::current_output_port()
 
-Stdio = {
-  rbuf = scheme::make_u8vector(4096)
-  
-  read = fun: [n] {
-    num = scheme::read_subu8vector(rbuf, 0, n, stdin_prt, 1)
-    scheme::subu8vector(rbuf, 0, num)
-  }
-  
-  write = fun: [towr] {
-    scheme::write_subu8vector(towr, 0, scheme::u8vector_length(towr), stdout_prt)
-    scheme::force_output(stdout_prt)
-  }
-  
-  ReadWriter(read, write)
-}
+Stdio = SchemeToRWC(stdin_prt, stdout_prt)
 
 EOF = scheme::EOF
 
@@ -64,11 +73,11 @@ ReadFull = fun: [rdr, num] {
   } else {
     thing = rdr.Read(num)
     if: IsEOF(thing,) {
-      scheme::raise("Unexpected EOF!")
-    } else if: (scheme::bytes_length(thing) == num) {
+      raise: "Unexpected EOF!"
+    } else if: thing.Length() == num {
       thing
     } else {
-      scheme::bytes_append(thing, ReadFull(rdr, num - scheme::bytes_length(thing)))
+      thing.Append(ReadFull(rdr, num - scheme::bytes_length(thing)))
     }
   }
 }

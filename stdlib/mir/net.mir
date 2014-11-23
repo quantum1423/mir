@@ -2,7 +2,7 @@ module: net
 
 import: "~~/io.mir"
 
-// TCP module. 
+// Networking module. 
 
 // Listener interface. Use method Accept(), it should return a ReadWriteCloser.
 Listener = struct: Accept Close
@@ -13,23 +13,7 @@ TCPListen = fun: [host] {
   
   accept = fun: [] {
     llprt = scheme::tcp_accept_px(server)
-    read = fun: [n] {
-      rbuf = scheme::make_bytes(n)
-      num = scheme::read_bytes_avail(rbuf, llprt)
-      if: num == 0 {
-        io::EOF
-      } else {
-        scheme::subbytes(rbuf, 0, num)
-      }
-    }
-    write = fun: [towr] {
-      scheme::write_bytes(towr, llprt)
-      scheme::force_output(llprt)
-    }
-    close = fun: [] {
-      scheme::close_port(llprt)
-    }
-    io::ReadWriteCloser(read, write, close)
+    io::SchemeToRWC(llprt, llprt)
   }
   
   close = fun: [] {
@@ -42,21 +26,5 @@ TCPListen = fun: [host] {
 TCPConnect = fun: [host, port] {
   llprt = scheme::tcp_connect_px(host, port)
   
-  read = fun: [n] {
-    rbuf = scheme::make_bytes(n)
-    num = scheme::read_bytes_avail(rbuf, llprt)
-    if: num == 0 {
-      io::EOF
-    } else {
-      scheme::subbytes(rbuf, 0, num)
-    }
-  }
-  write = fun: [towr] {
-    scheme::write_bytes(towr, llprt)
-    scheme::force_output(llprt)
-  }
-  close = fun: [] {
-    scheme::close_port(llprt)
-  }
-  io::ReadWriteCloser(read, write, close)
+  io::SchemeToRWC(llprt, llprt)
 }

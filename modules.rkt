@@ -37,7 +37,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
        "send" "recv" "reply" "void"))
 
 (define special-member
-  (set "Append" "Map" "Filter"))
+  (set "Length" "Append" "Map" "Filter"))
 
 (define (mangle sexp prefix)
   (define rcr (lambda(x) (mangle x prefix)))
@@ -46,7 +46,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
                                [(set-member? special-member (symbol->string id))
                                 `(,(string->symbol 
                                     (string-append "SM" 
-                                                   (symbol->string id))) ,expr)]
+                                                   (symbol->string id))) ,(rcr expr))]
                                [else `(call ,(rcr expr) (quote ,id))])]
     [`(quote . ,rst) sexp]
     [`(TOPLEV . ,ss) (map rcr ss)]
@@ -150,7 +150,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (exppath x)
   (string-replace x "~~" (path->string mirlibs-loc)))
 
-(define USE_CHICKEN #f)
+(define USE_CHICKEN #t)
 
 (define (build-file file (output (string-replace file ".mir" "")))
   (set! file (normalize-path file))
@@ -186,7 +186,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (cond
     [USE_CHICKEN
      (system
-      (format "csc -optimize-leaf-routines -block -inline -inline-global -no-trace -no-lambda-info -lfa2 -o \"~a\" \"~a\"" output xaxa))]
+      (format "csc -stack-size 768k -optimize-leaf-routines -block -inline -inline-global -no-trace -no-lambda-info -lfa2 -o \"~a\" \"~a\"" output xaxa))]
     [else
      (system
       (format "gsc -exe -o \"~a\" \"~a\"" output xaxa))])

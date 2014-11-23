@@ -1,7 +1,5 @@
-(declare (debug))
 (declare (standard-bindings))
 (declare (block))
-(declare (debug-location))
 
 (define printf
   (lambda (fmtstr . args)

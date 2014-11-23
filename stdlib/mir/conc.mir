@@ -3,6 +3,7 @@ module: conc
 // Concurrency constructs
 
 // Mutex lock
+
 mtx = struct: Acquire Release __impl__
 
 Mutex = fun: [] {
@@ -17,6 +18,7 @@ Mutex = fun: [] {
 }
 
 // Condition variable
+
 cvar = struct: Signal Broadcast Wait
 
 ConditionVariable = fun: [] {
