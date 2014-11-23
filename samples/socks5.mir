@@ -6,7 +6,8 @@ import: "~~/io.mir"
 
 handle = fun: [client] {
   defer: client.Close()
-  recover: [e] io::Printf("Error while handling connection: ~a\n", e)
+  // squelch io errors, they are usually completely irrelevant
+  recover: [e] void()
   
   // greeting: 0x05 num (auth methods)
   greeting = io::ReadFull(client, 2)
