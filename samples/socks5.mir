@@ -40,7 +40,7 @@ handle = fun: [client] {
   } else {
     raise: "WTF!"
   }
-  pb <- io::ReadFull(client, 2)
+  pb = io::ReadFull(client, 2)
   port <- pb[0] * 256 + pb[1]
   io::Printf("Tunneling: ~a:~a\n", host, port)
   

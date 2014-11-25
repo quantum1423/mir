@@ -150,7 +150,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define (exppath x)
   (string-replace x "~~" (path->string mirlibs-loc)))
 
-(define USE_CHICKEN #t)
+(define USE_CHICKEN #f)
 
 (define (build-file file (output (string-replace file ".mir" "")))
   (set! file (normalize-path file))
@@ -186,7 +186,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (cond
     [USE_CHICKEN
      (system
-      (format "csc -stack-size 768k -optimize-leaf-routines -block -inline -inline-global -no-trace -no-lambda-info -lfa2 -o \"~a\" \"~a\"" output xaxa))]
+      (format "csc -stack-size 256k -optimize-leaf-routines -block -inline -inline-global -no-trace -no-lambda-info -lfa2 -o \"~a\" \"~a\"" output xaxa))]
     [else
      (system
       (format "gsc -exe -o \"~a\" \"~a\"" output xaxa))])

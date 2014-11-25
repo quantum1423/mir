@@ -72,3 +72,8 @@
     [var () (hand var)]))
     
 (define (force-output x) (void))
+
+(define-macro (assign x y)
+  `(begin
+    (set! ,x ,y)
+    ,x))

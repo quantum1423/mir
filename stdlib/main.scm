@@ -81,11 +81,7 @@
       (lambda()
         ,x
         (for-each (lambda(x) (x)) (current-defer-thunks))))))
-        
-(define-macro (assign x y)
-  `(begin
-    (set! ,x ,y)
-    ,x))
+       
   
 (define (make-semaphore n)
   (vector n (make-mutex) (make-condition-variable)))
@@ -134,7 +130,9 @@
     ((vector? d) (vector-ref d v))
     (else ((d 'Ref) v))))
     
-(define-macro (mir-raise v) `(raise ,v))
+(define-macro (mir-raise v) `(error ,v))
+
+(define-macro (mir-panic v) `(begin (printf "WARNING: ~a\n" ,v) (error ,v)))
 
 
 ;; Generic listy methods

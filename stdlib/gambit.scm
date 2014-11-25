@@ -1,5 +1,7 @@
 (declare (standard-bindings))
+(declare (extended-bindings))
 (declare (block))
+;(declare (not safe))
 
 (define printf
   (lambda (fmtstr . args)
@@ -31,6 +33,13 @@
                 (begin
                   (display c)
                   (loop (+ i 1) args))))))))))
+                  
+(define-macro (when a b)
+  `(if ,a ,b ,(void)))
+  
+  
+(define (bound? name)
+  (not (##unbound? (##global-var-ref (##make-global-var name)))))
                   
                   
 (define (format . argz)
@@ -78,3 +87,11 @@
   (list->string
     (map integer->char
       (u8vector->list bts))))
+      
+(define UNBOUND #!unbound)
+
+(define-macro (assign x y)
+  `(begin
+    (when (##unbound? ,x) (mir-panic (format "Cannot assign to unbound variable! ~a <- ~a" ,x ,y)))
+    (set! ,x ,y)
+    ,x))
