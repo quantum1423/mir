@@ -34,7 +34,7 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
 (define dont-mangle
   (set "else" "length"
        "append" "cons" "car" "cdr"
-       "send" "recv" "reply" "void"))
+       "send" "recv" "reply" "void" "false" "true"))
 
 (define special-member
   (set "Length" "Append" "Map" "Filter"))

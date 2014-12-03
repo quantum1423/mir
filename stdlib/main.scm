@@ -6,11 +6,26 @@
              
 (define-macro (mir-when a b)
               `(if ,a ,b (void)))
+              
+(define-macro (mir-while a b)
+              `(let loop()
+                (if ,a
+                    (begin ,b (loop))
+                    (void))))
 
 (define-macro (mir-time a) `(time ,a))
 
+(define STACK_TRACE_BUFFER (make-vector 512))
+(define STACK_TRACE_POINTER 0)
+;(define (ADD_TRACE str)
+;  (
+
 (define-macro (mir-yarn a)
-  `(thread-start! (make-thread (lambda() (mir-guard ,a)))))
+  (define t (gensym))
+  `(let ([,t (make-thread (lambda() (mir-nofail (mir-guard ,a))))])
+    (thread-quantum-set! ,t 0)
+    (thread-start! ,t)
+    ,t))
   
 (define-macro (call a . rst)
   `(,a . ,rst))
@@ -81,6 +96,13 @@
       (lambda()
         ,x
         (for-each (lambda(x) (x)) (current-defer-thunks))))))
+        
+        
+(define-macro (mir-nofail x)
+  `(with-exception-catcher
+    (lambda (e) (mir-panic (format "Exception ~v escaped a no-fail context!" (exn-message e))))
+    (lambda ()
+      ,x)))
        
   
 (define (make-semaphore n)
@@ -121,18 +143,38 @@
   (define sm (make-semaphore 0))
   (define haha (vector b sm #f))
   (thread-send a haha)
-  (semaphore-wait! sm)
-  (vector-ref haha 2))
+  (lambda ()
+    (semaphore-wait! sm)
+    (let [(ret (vector-ref haha 2))]
+      (semaphore-signal-by! (vector-ref haha 1) 1)
+      ret)))
   
 (define (dict-ref d v)
   (cond
+    ((f64vector? d) (f64vector-ref d v))
     ((bytes? d) (bytes-ref d v))
     ((vector? d) (vector-ref d v))
-    (else ((d 'Ref) v))))
+    (else ((d '__ref__) v))))
+    
+(define (dict-set! d v n)
+  (cond
+    ((f64vector? d) (f64vector-set! d v n))
+    ((bytes? d) (bytes-set! d v n))
+    ((vector? d) (vector-set! d v n))
+    (else ((d '__set___) v n))))
+    
+(define-macro (generic-assign lhs rhs)
+  (cond
+    ((and (pair? lhs) (equal? (car lhs) 'dict-ref)) `(dict-set! ,(cadr lhs)
+                                                    ,(caddr lhs)
+                                                    ,rhs))
+    (else `(assign ,lhs ,rhs))))
     
 (define-macro (mir-raise v) `(error ,v))
 
-(define-macro (mir-panic v) `(begin (printf "WARNING: ~a\n" ,v) (error ,v)))
+(define-macro (mir-panic v) `(begin
+                              (printf "FATAL ERROR: ~a\n" ,v)
+                              (exit 42)))
 
 
 ;; Generic listy methods
@@ -152,3 +194,9 @@
     ((bytes? a) (lambda () (bytes-length a)))
     ((string? a) (lambda () (string-length a)))
     (else (a 'Length))))
+    
+    
+;; Other global variables
+
+(define false #f)
+(define true #t)

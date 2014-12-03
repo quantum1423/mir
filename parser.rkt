@@ -116,7 +116,7 @@
    (grammar
     (start ((semilst) `(let() ,@$1)))
     (expr ((ID = expr) `(define ,$1 ,$3))
-          ((ID <- expr) `(assign ,$1 ,$3))
+          ((expr <- expr) `(generic-assign ,$1 ,$3))
           ((ID) $1)
           ((LBRACE semilst RBRACE) `(let () ,@$2))
           ((NUM) $1)
@@ -143,6 +143,7 @@
           )
     
     (semilst ((expr SEMI semilst) (cons $1 $3))
+             ((expr) (list $1))
              (() empty))
     
     (commalst ((expr COMMA commalst) (cons $1 $3))

@@ -1,7 +1,6 @@
 (declare (standard-bindings))
 (declare (extended-bindings))
 (declare (block))
-;(declare (not safe))
 
 (define printf
   (lambda (fmtstr . args)
@@ -48,7 +47,8 @@
       (apply printf argz))))
       
 (define (tcp-listen-px prt)
-  (open-tcp-server prt))
+  (open-tcp-server (list port-number: prt
+                         backlog: 2048)))
   
 (define (tcp-accept-px lst)
   (read lst))
@@ -56,7 +56,9 @@
 (define (tcp-connect-px host port)
   (open-tcp-client (list
                       server-address: host
-                      port-number: port)))
+                      port-number: port
+                      coalesce: #f
+                      keep-alive: #t)))
   
 (define (tcp-close-px lst)
   (close-port lst))
@@ -77,6 +79,7 @@
 (define bytes? u8vector?)
 
 (define bytes-ref u8vector-ref)
+(define bytes-set! u8vector-set!)
   
 (define subbytes subu8vector)
 
@@ -95,3 +98,8 @@
     (when (##unbound? ,x) (mir-panic (format "Cannot assign to unbound variable! ~a <- ~a" ,x ,y)))
     (set! ,x ,y)
     ,x))
+    
+(define (exn-message ex)
+  (cond
+    ((error-exception? ex) (error-exception-message ex))
+    (else ex)))

@@ -1,6 +1,11 @@
 module: conc
+import: "~~/io.mir"
 
 // Concurrency constructs
+
+// Sleep1
+
+Sleep = scheme::thread_sleepM
 
 // Mutex lock
 
@@ -21,7 +26,7 @@ Mutex = fun: [] {
 
 cvar = struct: Signal Broadcast Wait
 
-ConditionVariable = fun: [] {
+Condition = fun: [] {
   cv = scheme::make_condition_variable()
   sig = fun: [] {
     scheme::condition_variable_signalM(cv)
@@ -33,4 +38,75 @@ ConditionVariable = fun: [] {
     scheme::mutex_unlockM(lk.__impl__, cv)
   }
   cvar(sig, bro, wat)
+}
+
+// Semaphore
+
+sem = struct: Wait Post
+
+Semaphore = fun: [n] {
+  s = scheme::make_semaphore(n)
+  wait = fun: [] { scheme::semaphore_waitM(s) }
+  post = fun: [] { scheme::semaphore_signal_byM(s, 1) }
+  sem(wait, post)
+}
+
+// Channel
+
+chan = struct: Send Recv Close
+
+Channel = fun: [] {
+  val = false
+  has_val = false
+  lock = Mutex()
+  received = Condition()
+  sent = Condition()
+  
+  sentinel = scheme::gensym()
+  closed = false
+  
+  send = fun: [v] {
+    lock.Acquire()
+    when: closed {
+      lock.Release()
+      raise: "Cannot send on closed channel!"
+    }
+    val <- v
+    has_val <- true
+    sent.Signal()
+    while: has_val {
+      received.Wait(lock)
+    }
+    lock.Release()
+  }
+  
+  recv = fun: [] {
+    lock.Acquire()
+    when: closed {
+      lock.Release()
+      raise: "Channel closed"
+    }
+    // Wait until has value
+    while: has_val == false {
+      sent.Wait(lock)
+    }
+    has_val <- false
+    toret = val
+    received.Signal()
+    lock.Release()
+    when: toret == sentinel {
+      raise: "Channel closed"
+    }
+  }
+  
+  close = fun: [] {
+    lock.Acquire()
+    closed <- true
+    val <- sentinel
+    has_val <- true
+    sent.Signal()
+    lock.Release()
+  }
+  
+  chan(send, recv, close)
 }

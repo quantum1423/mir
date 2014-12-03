@@ -1,0 +1,5 @@
+module: data
+
+// Some nice functional data structures
+
+queue = struct: Enqueue Dequeue
