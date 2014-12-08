@@ -37,13 +37,16 @@
   (tcp-close lst))
   
 (define (make-bytes n) (make-string n))
-  
+
+;; TODO: fix HORRIBLE HACK
 (define (read-bytes-avail bts port)
   (cond
     ((pair? port) ; TCP
                   (thread-wait-for-i/o! (port->fileno (car port)) #:input)
-                  (define num (cadr (file-read (port->fileno (car port)) (string-length bts) bts)))
-                  num)))              
+                  (define num 
+                    (cadr (file-read (port->fileno (car port)) (string-length bts) bts)))
+                  num)
+    (else (read-string! 1 bts port))))     
                   
 (define (write-bytes bts port)
   (write-string bts #f (if (pair? port) (cdr port) port)))
@@ -56,6 +59,7 @@
   
 (define bytes-length string-length)
 (define bytes2string identity)
+(define string2bytes identity)
 
 (define bytes? string?)
 
@@ -69,7 +73,7 @@
                       
 (define (with-exception-catcher hand thnk)
   (condition-case (thnk)
-    [var () (hand var)]))
+    [var (exn) (hand var)]))
     
 (define (force-output x) (void))
 
@@ -77,3 +81,21 @@
   `(begin
     (set! ,x ,y)
     ,x))
+    
+(define (ns-format . argz)
+  (with-output-to-string
+    (lambda()
+      (apply ns-printf argz))))
+      
+(define (exn-message exn)
+  ((condition-property-accessor 'exn 'message) exn))
+    
+;; shitty shim
+
+(define fl+ +)
+(define fl/ /)
+(define fl- -)
+(define fl* *)
+
+(define-macro (let/cc k . rst)
+  `(call/cc (lambda (,k) . ,rst)))

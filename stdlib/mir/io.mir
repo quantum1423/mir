@@ -1,83 +1,66 @@
-module: io
+namespace "io"
 
-// IO module.
+// Interfaces.
 
-// Formatting
+// <obj>.Read(n) reads in a byte string of length at most n, or an EOF.
+// <obj>.Write(bts) writes all of bts
 
-Printf = scheme::printf
+struct Reader(Read)
+struct Writer(Write)
+struct ReadWriter(Read, Write)
+struct ReadWriteCloser(Read, Write, Close)
 
-Sprintf = scheme::format
+// Convert a pair of Scheme ports to a ReadWriteCloser
 
-// Interfaces
-
-Reader = struct: Read
-Writer = struct: Write
-ReadWriter = struct: Read Write
-ReadWriteCloser = struct: Read Write Close
-
-// Wrapper for Scheme ports
-
-SchemeToRWC = fun: [in, out] {
-  read = fun: [n] {
-    rbuf = scheme::make_bytes(n)
-    num = scheme::read_bytes_avail(rbuf, in)
-    if: num == 0 {
-      io::EOF
+fun SchemeToRWC(in, out) {
+  fun Read(n) {
+    let buffer = scheme::make_bytes(n)
+    let num = scheme::read_bytes_avail(buffer, in)
+    if (IsEOF(num)) {
+      num
+    } else if (num == 0) {
+      EOF
     } else {
-      scheme::subbytes(rbuf, 0, num)
+      scheme::subbytes(buffer, 0, num)
     }
   }
-  write = fun: [towr] {
-    scheme::write_bytes(towr, out)
+  fun Write(bts) {
+    scheme::write_bytes(bts, out)
     scheme::force_output(out)
   }
-  close = fun: [] {
+  fun Close() {
     scheme::close_port(out)
     scheme::close_port(in)
   }
-  ReadWriteCloser(read, write, close)
+  ReadWriteCloser(Read, Write, Close)
 }
 
-// Standard input and output
+// Standard IO
 
-stdin_prt = scheme::current_input_port()
-stdout_prt = scheme::current_output_port()
+let Stdio = SchemeToRWC(scheme::current_input_port(), scheme::current_output_port())
+    
+// EOF things
+let IsEOF = scheme::eof_objectP
+let EOF = scheme::EOF
 
-Stdio = SchemeToRWC(stdin_prt, stdout_prt)
+// Copy reader to writer
 
-EOF = scheme::EOF
-
-IsEOF = fun: [x] {
-  scheme::eof_objectP(x)
-}
-
-// Dump a to b
-
-CopyIO = fun: [in, out] {
-  loop: loop [] {
-    bts = in.Read(4096)
-    if: bts == io::EOF {
-      bts
-    } else {
-      out.Write(bts)
-      loop()
+fun CopyIO(in, out) {
+  mark out: while (true) {
+    let res = in.Read(4096)
+    if (IsEOF(res)) {
+      break out EOF
     }
+    out.Write(res)
   }
 }
 
-// ReadFull
+// Formatting
 
-ReadFull = fun: [rdr, num] {
-  if: num == 0 {
-    scheme::make_bytes(0)
-  } else {
-    thing = rdr.Read(num)
-    if: IsEOF(thing,) {
-      raise: "Unexpected EOF!"
-    } else if: thing.Length() == num {
-      thing
-    } else {
-      thing.Append(ReadFull(rdr, num - scheme::bytes_length(thing)))
-    }
-  }
-}
+let Printf = scheme::ns_printf
+let Sprintf = scheme::ns_format
+
+// String to bytes, bytes to string
+
+let StringToBytes = scheme::string2bytes
+let BytesToString = scheme::bytes2string

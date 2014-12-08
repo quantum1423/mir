@@ -1,30 +1,26 @@
-module: net
+namespace "net"
 
-import: "~~/io.mir"
+import "~~/io.mir"
 
 // Networking module. 
 
 // Listener interface. Use method Accept(), it should return a ReadWriteCloser.
-Listener = struct: Accept Close
 
-// TCP listen on a port
-TCPListen = fun: [host] {
-  server = scheme::tcp_listen_px(host)
-  
-  accept = fun: [] {
-    llprt = scheme::tcp_accept_px(server)
-    io::SchemeToRWC(llprt, llprt)
+struct Listener(Accept, Close)
+
+fun TCPListen(port) {
+  let thing = scheme::tcp_listen_px(port)
+  fun Accept() {
+    let xaxa = scheme::tcp_accept_px(thing)
+    io::SchemeToRWC(xaxa, xaxa)
   }
-  
-  close = fun: [] {
-    scheme::tcp_close_px(server)
-  }
-  Listener(accept, close)
+  fun Close() scheme::tcp_close_px(thing)
+  Listener(Accept, Close)
 }
 
-// TCP connect
-TCPConnect = fun: [host, port] {
-  llprt = scheme::tcp_connect_px(host, port)
-  
-  io::SchemeToRWC(llprt, llprt)
+// Connect to a remote tcp thingy
+
+fun TCPConnect(host, port) {
+  let thing = scheme::tcp_connect(host, port)
+  io::SchemeToRWC(thing)
 }

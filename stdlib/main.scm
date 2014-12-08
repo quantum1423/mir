@@ -1,13 +1,35 @@
-(define-macro (mir-fun a b)
-             `(lambda ,(cdr a) ,b))
-
-(define-macro (mir-if a b c d)
-             `(if ,a ,b ,d))
-             
-(define-macro (mir-when a b)
-              `(if ,a ,b (void)))
+(define ns-printf
+  (lambda (fmtstr . args)
+    (let ((len (string-length fmtstr)))
+      (let loop ((i 0) (args args))
+        (let ((output
+                (lambda (fn)
+                  (fn (car args))
+                  (loop  (+ i 2) (cdr args))))
+              (outputc
+                (lambda (fn)
+                  (fn)
+                  (loop (+ i 2) args))))
+          (if (>= i len) #t
+            (let ((c (string-ref fmtstr i)))
+              (if (char=? c #\~)
+                (case (string-ref fmtstr (+ i 1))
+                  ((#\s) (output write))
+                  ((#\a) (output display))
+                  ((#\c) (output write-char))
+                  ((#\% #\n) (outputc newline))
+                  ((#\~) (outputc (lambda () (write-char #\~))))
+                  (else
+                    (write
+                      "error in eopl:printf: unknown fmtstr character ")
+                    (write-char  (string-ref fmtstr (+ i 1)))
+                    (write-char #\newline)
+                    (error "WTF!")))
+                (begin
+                  (display c)
+                  (loop (+ i 1) args))))))))))
               
-(define-macro (mir-while a b)
+(define-macro (_while a b)
               `(let loop()
                 (if ,a
                     (begin ,b (loop))
@@ -20,18 +42,21 @@
 ;(define (ADD_TRACE str)
 ;  (
 
-(define-macro (mir-yarn a)
+(define-macro (_yarn a)
   (define t (gensym))
-  `(let ([,t (make-thread (lambda() (mir-nofail (mir-guard ,a))))])
-    (thread-quantum-set! ,t 0)
-    (thread-start! ,t)
-    ,t))
+  `(parameterize ([reply-sig #f])
+    (let ([,t (make-thread (lambda() (_nofail (_guard ,a))))])
+      (thread-quantum-set! ,t 0)
+      (thread-start! ,t)
+      ,t)))
   
-(define-macro (call a . rst)
+(define-macro (_funcall a . rst)
   `(,a . ,rst))
- 
   
-(define-macro (mir-loop lname alst a)
+(define-macro (_let a b)
+  `(define ,a ,b))
+  
+(define-macro (mir-recur lname alst a)
   (define (proper-assoc x)
   (cond
     ((null? x) '())
@@ -39,7 +64,7 @@
                       (proper-assoc (cddr x))))))
   `(let ,lname ,(proper-assoc (cdr alst)) ,a))
   
-(define (cur-yarn)
+(define (this)
   (current-thread))
   
 (define (zip a b)
@@ -49,21 +74,12 @@
                       (car b))
                 (zip (cdr a) (cdr b))))))
   
-(define-macro (mir-struct . namez)
-  (define (sunmangle x)
-    (define startidx
-      (let loop ((i 0))
-        (cond
-          ((equal? (string-ref x i) #\:) (+ i 2))
-          (else (loop (+ 1 i))))))
-    (substring x startidx (string-length x)))
-    
-  (define (unmangle x) (string->symbol (sunmangle (symbol->string x))))
+(define-macro (_struct . namez)
   
   (define args (gensym))
   (define gaga (gensym))
   `(lambda ,args
-    (define ,gaga (zip (quote ,(map unmangle namez)) ,args))
+    (define ,gaga (zip (quote ,namez) ,args))
     (lambda (woo) (cdr (assoc woo ,gaga)))))
       
 (define EOF #!eof)
@@ -74,22 +90,20 @@
 
 (define (attempt-recover e funs)
   (cond
-    ((null? funs) (raise e))
-    (else (let ([res ((car funs) e)])
-            (if (not (equal? res '__prop__)) res (attempt-recover e (cdr funs)))))))
-          
-(define (propagate)
-  '__prop__)
+    ((null? funs) (abort e))
+    (else (with-exception-catcher
+            (lambda(e) (attempt-recover e (cdr funs)))
+            (lambda() ((car funs) (exn-message e)))))))
 
-(define-macro (mir-defer x)
+(define-macro (_defer x)
   `(current-defer-thunks
     (cons (lambda() ,x) (current-defer-thunks))))
     
-(define-macro (mir-recover e x)
+(define-macro (_recover e x)
   `(current-recovers
-    (cons (lambda ,(cdr e) ,x) (current-recovers))))
+    (cons (lambda ,e ,x) (current-recovers))))
     
-(define-macro (mir-guard x)
+(define-macro (_guard x)
   `(parameterize ((current-defer-thunks '()))
     (with-exception-catcher
       (lambda (e) (for-each (lambda(x) (x)) (current-defer-thunks)) (attempt-recover e (current-recovers)))
@@ -98,9 +112,10 @@
         (for-each (lambda(x) (x)) (current-defer-thunks))))))
         
         
-(define-macro (mir-nofail x)
+(define-macro (_nofail x)
   `(with-exception-catcher
-    (lambda (e) (mir-panic (format "Exception ~v escaped a no-fail context!" (exn-message e))))
+    (lambda (e) 
+      (mir-panic (ns-format "Exception ~s escaped a no-fail context!" (exn-message e))))
     (lambda ()
       ,x)))
        
@@ -137,7 +152,7 @@
 (define (reply x)
   (define c (reply-sig))
   (vector-set! c 2 x)
-  (semaphore-signal-by! (vector-ref c 1) 1))
+  (semaphore-signal-by! (vector-ref c 1) 100))
   
 (define (send a b)
   (define sm (make-semaphore 0))
@@ -149,7 +164,7 @@
       (semaphore-signal-by! (vector-ref haha 1) 1)
       ret)))
   
-(define (dict-ref d v)
+(define (_index d v)
   (cond
     ((f64vector? d) (f64vector-ref d v))
     ((bytes? d) (bytes-ref d v))
@@ -163,17 +178,17 @@
     ((vector? d) (vector-set! d v n))
     (else ((d '__set___) v n))))
     
-(define-macro (generic-assign lhs rhs)
+(define-macro (_set lhs rhs)
   (cond
-    ((and (pair? lhs) (equal? (car lhs) 'dict-ref)) `(dict-set! ,(cadr lhs)
+    ((and (pair? lhs) (equal? (car lhs) '_index)) `(dict-set! ,(cadr lhs)
                                                     ,(caddr lhs)
                                                     ,rhs))
     (else `(assign ,lhs ,rhs))))
     
-(define-macro (mir-raise v) `(error ,v))
+(define-macro (_abort v) `(error ,v))
 
 (define-macro (mir-panic v) `(begin
-                              (printf "FATAL ERROR: ~a\n" ,v)
+                              (ns-printf "FATAL ERROR: ~a\n" ,v)
                               (exit 42)))
 
 
@@ -195,8 +210,24 @@
     ((string? a) (lambda () (string-length a)))
     (else (a 'Length))))
     
+;; Member call
+
+(define-macro (_member a b)
+  `(_funcall ,a (quote ,b)))
     
 ;; Other global variables
 
 (define false #f)
 (define true #t)
+
+
+;; over loops
+
+(define-macro (_count_to ctr limit bdy)
+  (let ([lmt (gensym 'count-to-lmt)])
+  `(let ([,lmt ,limit])
+     (let loop ([,ctr 0])
+      (if (< ,ctr ,lmt)
+        (let()
+          ,bdy
+          (loop (+ 1 ,ctr))))))))

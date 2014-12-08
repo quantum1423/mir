@@ -1,112 +1,80 @@
-module: conc
-import: "~~/io.mir"
+namespace "conc"
+import "~~/io.mir"
 
 // Concurrency constructs
 
-// Sleep1
+// Sleep
 
-Sleep = scheme::thread_sleepM
-
-// Mutex lock
-
-mtx = struct: Acquire Release __impl__
-
-Mutex = fun: [] {
-  moo = scheme::make_mutex()
-  acq = fun: [] {
-    scheme::mutex_lockM(moo)
-  }
-  rel = fun: [] {
-    scheme::mutex_unlockM(moo)
-  }
-  mtx(acq, rel, moo)
-}
+let Sleep = scheme::thread_sleepM
 
 // Condition variable
 
-cvar = struct: Signal Broadcast Wait
+struct cvar(Wait, Signal, Broadcast)
 
-Condition = fun: [] {
-  cv = scheme::make_condition_variable()
-  sig = fun: [] {
-    scheme::condition_variable_signalM(cv)
+fun Condition() {
+  let var = scheme::make_condition_variable()
+  fun Wait(lk) {
+    scheme::mutex_unlockM(lk.__impl__, var)
   }
-  bro = fun: [] {
-    scheme::condition_variable_broadcastM(cv)
+  fun Signal() {
+    scheme::condition_variable_signalM(var)
   }
-  wat = fun: [lk] {
-    scheme::mutex_unlockM(lk.__impl__, cv)
+  fun Broadcast() {
+    scheme::condition_variable_broadcastM(var)
   }
-  cvar(sig, bro, wat)
+  cvar(Wait, Signal, Broadcast)
 }
 
-// Semaphore
+// Mutex lock
 
-sem = struct: Wait Post
+struct mtx(Lock, Unlock, __impl__)
 
-Semaphore = fun: [n] {
-  s = scheme::make_semaphore(n)
-  wait = fun: [] { scheme::semaphore_waitM(s) }
-  post = fun: [] { scheme::semaphore_signal_byM(s, 1) }
-  sem(wait, post)
+fun Mutex() {
+  let var = scheme::make_mutex()
+  fun Lock() scheme::mutex_lockM(var)
+  fun Unlock() scheme::mutex_unlockM(var)
+  mtx(Lock, Unlock, var)
 }
 
 // Channel
 
-chan = struct: Send Recv Close
+struct chan(Send, Recv)
 
-Channel = fun: [] {
-  val = false
-  has_val = false
-  lock = Mutex()
-  received = Condition()
-  sent = Condition()
-  
-  sentinel = scheme::gensym()
-  closed = false
-  
-  send = fun: [v] {
-    lock.Acquire()
-    when: closed {
-      lock.Release()
-      raise: "Cannot send on closed channel!"
-    }
-    val <- v
-    has_val <- true
-    sent.Signal()
-    while: has_val {
-      received.Wait(lock)
-    }
-    lock.Release()
+fun make_unbuffered_chan() {
+  let lock = Mutex()
+  let sendlock = Mutex()
+  let sent = Condition()
+  let received = Condition()
+  let boxfilled = false
+  let box = 0
+  fun Send(value) {
+    sendlock.Lock()
+    lock.Lock()
+    set box = value
+    set boxfilled = true
+    sent.Broadcast()
+    while (boxfilled) received.Wait(lock)
+    lock.Unlock()
+    sendlock.Unlock()
   }
   
-  recv = fun: [] {
-    lock.Acquire()
-    when: closed {
-      lock.Release()
-      raise: "Channel closed"
-    }
-    // Wait until has value
-    while: has_val == false {
-      sent.Wait(lock)
-    }
-    has_val <- false
-    toret = val
-    received.Signal()
-    lock.Release()
-    when: toret == sentinel {
-      raise: "Channel closed"
-    }
+  fun Recv() {
+    lock.Lock()
+    while (boxfilled == false) sent.Wait(lock)
+    let toret = box
+    set boxfilled = false
+    received.Broadcast()
+    lock.Unlock()
+    toret
   }
   
-  close = fun: [] {
-    lock.Acquire()
-    closed <- true
-    val <- sentinel
-    has_val <- true
-    sent.Signal()
-    lock.Release()
+  chan(Send, Recv)
+}
+
+fun Channel(buflen) {
+  if (buflen == 0) {
+    make_unbuffered_chan()
+  } else {
+    abort "Buffered channels not implemented"
   }
-  
-  chan(send, recv, close)
 }

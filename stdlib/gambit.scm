@@ -1,37 +1,6 @@
 (declare (standard-bindings))
 (declare (extended-bindings))
 (declare (block))
-
-(define printf
-  (lambda (fmtstr . args)
-    (let ((len (string-length fmtstr)))
-      (let loop ((i 0) (args args))
-        (let ((output
-                (lambda (fn)
-                  (fn (car args))
-                  (loop  (+ i 2) (cdr args))))
-              (outputc
-                (lambda (fn)
-                  (fn)
-                  (loop (+ i 2) args))))
-          (if (>= i len) #t
-            (let ((c (string-ref fmtstr i)))
-              (if (char=? c #\~)
-                (case (string-ref fmtstr (+ i 1))
-                  ((#\s) (output write))
-                  ((#\a) (output display))
-                  ((#\c) (output write-char))
-                  ((#\% #\n) (outputc newline))
-                  ((#\~) (outputc (lambda () (write-char #\~))))
-                  (else
-                    (write
-                      "error in eopl:printf: unknown fmtstr character ")
-                    (write-char  (string-ref fmtstr (+ i 1)))
-                    (write-char #\newline)
-                    (error "WTF!")))
-                (begin
-                  (display c)
-                  (loop (+ i 1) args))))))))))
                   
 (define-macro (when a b)
   `(if ,a ,b ,(void)))
@@ -39,16 +8,10 @@
   
 (define (bound? name)
   (not (##unbound? (##global-var-ref (##make-global-var name)))))
-                  
-                  
-(define (format . argz)
-  (with-output-to-string '()
-    (lambda()
-      (apply printf argz))))
       
 (define (tcp-listen-px prt)
   (open-tcp-server (list port-number: prt
-                         backlog: 2048)))
+                         backlog: 256)))
   
 (define (tcp-accept-px lst)
   (read lst))
@@ -95,7 +58,7 @@
 
 (define-macro (assign x y)
   `(begin
-    (when (##unbound? ,x) (mir-panic (format "Cannot assign to unbound variable! ~a <- ~a" ,x ,y)))
+    (when (##unbound? ,x) (mir-panic (ns-format "Cannot assign to unbound variable! ~a <- ~a" ,x ,y)))
     (set! ,x ,y)
     ,x))
     
@@ -103,3 +66,11 @@
   (cond
     ((error-exception? ex) (error-exception-message ex))
     (else ex)))
+    
+(define (ns-format . argz)
+  (with-output-to-string
+    (lambda()
+      (apply ns-printf argz))))
+      
+(define-macro (let/cc k . rst)
+  `(call/cc (lambda (,k) . ,rst)))
