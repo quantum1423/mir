@@ -1,5 +1,0 @@
-module: interface
-
-// Utilities to help Mir library code interface with Scheme. 
-
-

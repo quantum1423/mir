@@ -124,11 +124,12 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
   (cond
     [(empty? imports) (list file)]
     [else (define children 
+            (parameterize ([current-directory (fname->dir file)])
             (map build-dependencies
                  (map (λ(x) (path->complete-path 
                              (exppath x)
                              (fname->dir file)))
-                      imports)))
+                      imports))))
           (append (list-union* children) (list file))]))
 
 (define-runtime-path chicklib-loc "./stdlib/chick.scm")
@@ -142,7 +143,18 @@ This ugly approach allows maximal flexibility in choosing Chicken vs. Gambit Sch
                   "-" "__"))
 
 (define (exppath x)
-  (string-replace x "~~" (path->string mirlibs-loc)))
+  (unless (or (regexp-match #rx"\\./" x)
+              (regexp-match #rx"^~~" x))
+    (set! x (string-append "~~/" x)))
+  (set! x (string-replace x "~~" (path->string mirlibs-loc)))
+  (cond
+    [(equal? x (string-replace x ".mir" "cthulhu"))
+     (cond
+       [(file-exists? (string-append x ".mir"))
+        (string-append x ".mir")]
+       [(directory-exists? x)
+        (string-append x "/main.mir")])]
+    [else x]))
 
 (define USE_CHICKEN #t)
 
