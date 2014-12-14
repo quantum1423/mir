@@ -11,12 +11,12 @@
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
    SEMI COMMA DOT COLON
    + - * / % .fl+. .fl-. .fl*. .fl/. ^ = :=
-   === < != !== == <= >= > ->
+   === < != !== == <= >= > -> ++
    HASH
    FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
    ABORT RAISE DEFER RECOVER GUARD STRUCT YARN TO DEF
    RETURN GOTO DCAST SCAST IS DEFUN DEFSTRUCT :FUN
-   LTUP RTUP VBAR MAP IN WHERE
+   LTUP RTUP VBAR MAP IN WHERE DEFTYPE
    ))
 
 (define (desynid q)
@@ -69,6 +69,7 @@
          "def"
          "defun"
          "defstruct"
+         "deftype"
          "to"
          "return"
          "goto"
@@ -81,8 +82,8 @@
          
          ":Fun"
          
-         "=" ":="
-         "==" "===" "!=" "!=="
+         "="
+         "==" "++" "!=" "!=="
          "<" "<=" ">" ">=" "->"
          "+" "-" "*" "/" "%") (string->symbol (string-upcase lexeme)))
    
@@ -154,10 +155,7 @@
    
    (grammar
     ;; Program header things
-    (<program> ((<module-declaration> 
-                 <import-declarations>
-                 <semi-list>) `(_program ,$1 ,$2 (_body ,@$3)))
-               ((<import-declarations>
+    (<program> ((<import-declarations>
                  <semi-list>) `(_program "" ,$1 (_body ,@$2))))
     (<module-declaration> ((NAMESPACE ID SEMI) (symbol->string $2)))
     (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
@@ -197,6 +195,9 @@
                    
                    ((DEFSTRUCT ID LPAREN <arg-comma-list> RPAREN)
                     `(_struct ,$2 ,@$4))
+                   
+                   ((DEFTYPE <type-name> <type-name>)
+                    `(define-type ,$2 ,$3))
                    
                    ((DEFER <expression>) `(_defer ,$2))
                    ((RECOVER LPAREN <expression> RPAREN <expression>)
@@ -260,6 +261,7 @@
                        ((<plus-prec>) $1))
     (<plus-prec> ((<plus-prec> + <times-prec>) `(+ ,$1 ,$3))
                  ((<plus-prec> - <times-prec>) `(- ,$1 ,$3))
+                 ((<plus-prec> ++ <times-prec>) `(_append ,$1 ,$3))
                  ((<times-prec>) $1))
     (<times-prec> ((<times-prec> * <unary-prec>) `(* ,$1 ,$3))
                   ((<times-prec> % <unary-prec>) `(modulo ,$1 ,$3))
@@ -297,6 +299,8 @@
                     ((STR) $1)
                     ((LPAREN <expression> RPAREN) $2)
                     ((LBRACK <comma-list> RBRACK) (cons '_list $2))
+                    ((LBRACK <expression> VBAR <expression> RBRACK)
+                     `(_cons ,$2 ,$4))
                     ((LTUP <comma-list> RBRACK) (cons 'vector $2)))
     
     
@@ -314,7 +318,7 @@
                  ((:FUN LPAREN <types-comma-list> RPAREN <type-name>)
                   `(-> ,@$3 ,$5))
                  ((<type-name> < <types-comma-list> >)
-                  `(,$1 ,@$3))
+                  `(,(if (equal? ':Union $1) 'U $1) ,@$3))
                  ((LTUP <types-comma-list> RBRACK)
                   `(Vector ,@$2)))
     
