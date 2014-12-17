@@ -13,10 +13,10 @@
    + - * / % .fl+. .fl-. .fl*. .fl/. ^ = :=
    === < != !== == <= >= > -> ++
    HASH
-   FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
+   FUN IF ELSE BREAK MARK NAMESPACE IMPORT FOR
    ABORT RAISE DEFER RECOVER GUARD STRUCT YARN TO DEF
-   RETURN GOTO DCAST SCAST IS DEFUN DEFSTRUCT :FUN
-   LTUP RTUP VBAR MAP IN WHERE DEFTYPE
+   RETURN
+   VBAR MAP IN WHERE
    ))
 
 (define (desynid q)
@@ -42,17 +42,16 @@
                 [else (printf "~a;\n" x)])))))))
 
 (define mir-lex
-  (lexer
+  (lexer-src-pos
    ((eof) 'EOF)
    (#\# 'HASH)
    ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
    
    ((:or #\tab
          #\space
-         #\newline) (mir-lex input-port))
+         #\newline) (position-token-token (mir-lex input-port)))
    
    ((:or "fun"
-         "while"
          "if"
          "else"
          "break"
@@ -67,20 +66,14 @@
          "yarn"
          "for"
          "def"
-         "defun"
-         "defstruct"
-         "deftype"
          "to"
          "return"
-         "goto"
          "map"
          "dcast"
          "scast"
          "is"
          "in"
          "where"
-         
-         ":Fun"
          
          "="
          "==" "++" "!=" "!=="
@@ -102,21 +95,6 @@
               (:/ #\A #\Z)
               #\_
               (:/ #\0 #\9))))) (token-ID (string->symbol lexeme)))
-   
-   ((:: ":"
-        (:*
-         (:or (:/ #\a #\z)
-              (:/ #\A #\Z)
-              #\_
-              (:/ #\0 #\9)))
-        (:or ""
-             "::")
-        (:*
-         (:or (:/ #\a #\z)
-              (:/ #\A #\Z)
-              #\_
-              (:/ #\0 #\9)))) (token-TYPE (string->symbol lexeme)))
-   
    
    ((:: (:+ (:or (:/ #\0 #\9)))
         (:or ""
@@ -144,19 +122,34 @@
        (string-append "__" (symbol->string x) "__"
                       (symbol->string sym))))))
 
+(define STRING "")
+
+(define (STRING-VICINITY i j)
+  (substring STRING (max 0 (- (position-offset i) 10))
+             (min (+ 10 (position-offset j)) (sub1 (string-length STRING)))))
+
 (define mir-parse
   (cfg-parser
    
    (start <program>)
    (end EOF)
+   (src-pos)
    (tokens value-tokens syntax-tokens)
-   (error (lambda (a b c)
-            (error (format "Parse error: ~v ~v ~v" a b c))))
+   (error (lambda (a b c i j)
+            (printf "Parse error:\n")
+            (printf "  Unexpected token ~a\n" b)
+            (printf "  ~a\n" (STRING-VICINITY i j))
+            (exit 42)))
    
    (grammar
     ;; Program header things
-    (<program> ((<import-declarations>
-                 <semi-list>) `(_program "" ,$1 (_body ,@$2))))
+    (<program> ((<module-declaration>
+                 <import-declarations>
+                 <semi-list>) `(_program ,$1 ,$2 (_body ,@$3)))
+               ((<import-declarations>
+                 <semi-list>) `(_program ,(symbol->string
+                                           (gensym '__TT__))
+                                         ,$1 (_body ,@$2))))
     (<module-declaration> ((NAMESPACE ID SEMI) (symbol->string $2)))
     (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
                            ((SEMI) empty)
@@ -182,28 +175,11 @@
     (<declaration> ((ID = <expression>) `(set! ,$1 ,$3))
                    ((DEF ID = <expression>) `(define ,$2 ,$4))
                    
-                   ((DEFUN ID LPAREN 
-                           <arg-comma-list> RPAREN <type-name> <expression>) 
-                    `(define: ,$2 : 
-                       (-> ,@(map third $4) ,$6) (lambda: ,$4 : ,$6 ,$7)))
-                   
-                   ((DEFUN ID < <types-comma-list> > 
-                         LPAREN <arg-comma-list> RPAREN <type-name> <expression>) 
-                    `(begin
-                       (: ,$2 (All ,$4 (-> ,@(map third $7) ,$9)))
-                       (define ,$2 (lambda: ,$7 : ,$9 ,$10))))
-                   
-                   ((DEFSTRUCT ID LPAREN <arg-comma-list> RPAREN)
-                    `(_struct ,$2 ,@$4))
-                   
-                   ((DEFTYPE <type-name> <type-name>)
-                    `(define-type ,$2 ,$3))
-                   
                    ((DEFER <expression>) `(_defer ,$2))
                    ((RECOVER LPAREN <expression> RPAREN <expression>)
                     `(_recover ,(list $3) ,$5))
                    ((ABORT <expression>) `(_abort ,$2))
-                   ((BREAK) `((cast _break (-> Void))))
+                   ((BREAK) `(_break))
                    ((RETURN <expression>) `(_return ,$2))
                    )
     ;; Infix math
@@ -225,9 +201,12 @@
                       ((FOR ID TO <block-prec> <expression>)
                        `(for ([,$2 (in-range ,$4)]) ,$5))
                       
-                      ((FUN LPAREN <arg-comma-list> RPAREN <type-name>
+                      ((FUN LPAREN <id-comma-list> RPAREN
                             <structure-prec>)
-                       `(lambda: ,$3 : ,$5 ,$6))
+                       `(lambda ,$3 ,$5))
+                      
+                      ((STRUCT LPAREN <id-comma-list> RPAREN)
+                       `(_struct ,@$3))
                       
                       ((MAP ID IN <block-prec> <structure-prec>)
                        `((_member ,$4 Map)
@@ -240,7 +219,7 @@
                       ((YARN <structure-prec>) `(_yarn ,$2))
                       ((GUARD <structure-prec>) `(_guard ,$2))
                       ((MARK <structure-prec>)
-                       `(let/ec _lol (define _break (cast _lol (-> Void)))
+                       `(let/ec _return
                           ,$2))
                       ((<block-prec>) $1))
     
@@ -274,20 +253,13 @@
     ;; Funcall-like things.
     (<funcall-prec> ((<funcall-prec> LPAREN <comma-list> RPAREN)
                      `(_funcall ,$1 ,@$3))
-                    ((<funcall-prec> < <types-comma-list> >)
-                     `(inst ,$1 ,@$3))
-                    
-                    ((DCAST < <type-name> >)
-                     `(lambda (x) (cast x ,$3)))
-                    ((SCAST < <type-name> > LPAREN <expression> RPAREN)
-                     `(ann ,$6 ,$3))
-                    ((IS < <type-name> >)
-                     `(make-predicate ,$3))
                     
                     ((<funcall-prec> LBRACK <expression> RBRACK)
                      `(_index ,$1 ,$3))
                     ((<funcall-prec> LBRACK <expression> -> <expression> RBRACK)
                      `(_index_set ,$1 ,$3 ,$5))
+                    ((<funcall-prec> LBRACK <expression> COLON <expression> RBRACK)
+                     `(_index_range ,$1 ,$3 ,$5))
                     
                     
                     ((<literal-prec> DOT ID)
@@ -300,31 +272,12 @@
                     ((LPAREN <expression> RPAREN) $2)
                     ((LBRACK <comma-list> RBRACK) (cons '_list $2))
                     ((LBRACK <expression> VBAR <expression> RBRACK)
-                     `(_cons ,$2 ,$4))
-                    ((LTUP <comma-list> RBRACK) (cons 'vector $2)))
-    
-    
-    
-    ;; Type-related things
-    (<arg-comma-list> ((ID <type-name> COMMA <arg-comma-list>) 
-                       (cons (list $1 ': $2) $4))
-                      ((ID <type-name>) (list (list $1 ': $2)))
-                      (() empty))
-    (<types-comma-list> ((<type-name> COMMA <types-comma-list>) (cons $1 $3))
-                        ((<type-name>) (list $1))
-                        (() empty))
-    
-    (<type-name> ((TYPE) $1)
-                 ((:FUN LPAREN <types-comma-list> RPAREN <type-name>)
-                  `(-> ,@$3 ,$5))
-                 ((<type-name> < <types-comma-list> >)
-                  `(,(if (equal? ':Union $1) 'U $1) ,@$3))
-                 ((LTUP <types-comma-list> RBRACK)
-                  `(Vector ,@$2)))
+                     `(_cons ,$2 ,$4)))
     
     )))
 
 (define (string->ast x)
+  (set! STRING x)
   (define chugger (open-input-string x))
   (define q (mir-parse (lambda () (mir-lex chugger))))
   q)

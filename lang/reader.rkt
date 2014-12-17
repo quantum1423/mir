@@ -20,12 +20,12 @@
     [`(_program ,modname
                 ,imports
                 ,body)
-     `(module lolo typed/racket/base
+     `(module lolo racket/base
         (require mirstdlib)
         (_export_things)
         (require racket/provide)
         (require racket/require)
-        (require (for-syntax racket))
+        (require (for-syntax racket/base))
         ,@(for/list ([imp imports])
             `(_import ,imp))
         ,@(cdr body)
