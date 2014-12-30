@@ -25,6 +25,7 @@
           (require racket/unsafe/ops)
           (require racket/require)
           (require (for-syntax racket/base))
+          (require (for-syntax racket/string))
           (provide (all-defined-out))
           ,@(for/list ([imp imports])
               `(_import ,imp))

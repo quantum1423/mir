@@ -17,7 +17,7 @@
    ABORT RAISE DEFER RECOVER GUARD INTERFACE YARN TO DEF
    RETURN GOTO DCAST SCAST IS 
    LTUP RTUP VBAR MAP IN WHERE UNION UNSAFE COLLECT
-   NEW VOID AND OR
+   NEW VOID AND OR TYPE WAIT
    ))
 
 (define (desynid q)
@@ -81,6 +81,8 @@
          "in"
          "where"
          "collect"
+         "type"
+         "wait"
          
          "="
          "==" "===" "!=" "!=="
@@ -186,6 +188,12 @@
                        (: ,$2 (All ,$4 (-> ,@(map third $7) ,$9)))
                        (define ,$2 (lambda: ,$7 : ,$9 ,$10))))
                    
+                   ((TYPE ID <type-name>)
+                    `(define-type ,(mangle-with "%" $2) ,$3))
+                   
+                   ((TYPE ID < <types-comma-list> > <type-name>)
+                    `(define-type ,(cons (mangle-with "%" $4)) ,$6))
+                   
                    ((INTERFACE ID LBRACE <arg-semi-list> RBRACE)
                     `(_interface ,(mangle-with "%" $2) ,@$4))
                    
@@ -245,6 +253,8 @@
                       
                       ((NEW <type-name> LBRACE <semi-list> RBRACE)
                        `(_object ,$2 ,@$4))
+                      
+                      ((WAIT <structure-prec>) `(_wait ,$2))
                       
                       ((<block-prec>) $1))
     
@@ -332,7 +342,7 @@
     
     (<type-name> ((ID) (string->symbol
                         (string-append "%" (symbol->string $1))))
-                 ((VOID) '$void)
+                 ((VOID) '%void)
                  ((FUN LPAREN <types-comma-list> RPAREN <type-name>)
                   `(-> ,@$3 ,$5))
                  ((<type-name> < <types-comma-list> >)
