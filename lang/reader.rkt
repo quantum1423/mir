@@ -17,16 +17,19 @@
 (define (ast-prepare ast)
   (define haha
     (match ast
-    [`(_program ,modname
-                ,imports
-                ,body)
-     `(module lolo typed/racket/base
-        (require mirstdlib)
-        (_namespace ,modname)
-        ,@(for/list ([imp imports])
-            `(_import ,imp ,modname))
-        ,@(cdr body)
-        )]))
+      [`(_program ,modname
+                  ,imports
+                  ,body)
+       `(module lolo typed/racket/base
+          (require mirstdlib)
+          (require racket/unsafe/ops)
+          (require racket/require)
+          (require (for-syntax racket/base))
+          (provide (all-defined-out))
+          ,@(for/list ([imp imports])
+              `(_import ,imp))
+          ,@(cdr body)
+          )]))
   haha)
 
 (define (get-info in mod line col pos)
@@ -36,3 +39,16 @@
        (dynamic-require 'syntax-color/default-lexer
                         'default-lexer)]
       [else default])))
+
+(define (emit-import-decl imp)
+  (match imp
+    [(regexp #rx"\\.mir$") `(require ,imp)]
+    [(regexp #rx"\\.rkt$") `(require ,imp)]
+    [else `(require (filtered-in
+                     (lambda (name)
+                       (and
+                        (regexp-match #rx"^[A-Z]" name)
+                        (string-append (first (reverse (string-split imp "/")))
+                                       "::"
+                                       name)))
+                     (lib ,(string-append imp "/main.mir"))))]))

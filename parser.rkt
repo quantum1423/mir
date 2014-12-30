@@ -5,18 +5,19 @@
 (require match-string)
 
 (define-tokens value-tokens
-  (NUM ID STR TYPE))
+  (NUM ID STR SYMBOL))
 (define-empty-tokens syntax-tokens
   (EOF
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
    SEMI COMMA DOT COLON
    + - * / % .fl+. .fl-. .fl*. .fl/. ^ = :=
-   === < != !== == <= >= > ->
+   === < != !== == <= >= > -> \\
    HASH
    FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
-   ABORT RAISE DEFER RECOVER GUARD STRUCT YARN TO DEF
-   RETURN GOTO DCAST SCAST IS DEFUN DEFSTRUCT :FUN
-   LTUP RTUP VBAR MAP IN WHERE
+   ABORT RAISE DEFER RECOVER GUARD INTERFACE YARN TO DEF
+   RETURN GOTO DCAST SCAST IS 
+   LTUP RTUP VBAR MAP IN WHERE UNION UNSAFE COLLECT
+   NEW VOID AND OR
    ))
 
 (define (desynid q)
@@ -62,15 +63,16 @@
          "defer"
          "abort"
          "guard"
-         "struct"
-         "recover"
+         "interface"
+         "recover" "void"
          "yarn"
+         "new"
          "for"
+         "unsafe"
          "def"
-         "defun"
-         "defstruct"
          "to"
          "return"
+         "union"
          "goto"
          "map"
          "dcast"
@@ -78,13 +80,12 @@
          "is"
          "in"
          "where"
+         "collect"
          
-         ":Fun"
-         
-         "=" ":="
+         "="
          "==" "===" "!=" "!=="
          "<" "<=" ">" ">=" "->"
-         "+" "-" "*" "/" "%") (string->symbol (string-upcase lexeme)))
+         "+" "-" "*" "\\" "/" "%") (string->symbol (string-upcase lexeme)))
    
    ((:- (:: (:or (:/ #\a #\z)
                  (:/ #\A #\Z)
@@ -101,20 +102,6 @@
               (:/ #\A #\Z)
               #\_
               (:/ #\0 #\9))))) (token-ID (string->symbol lexeme)))
-   
-   ((:: ":"
-        (:*
-         (:or (:/ #\a #\z)
-              (:/ #\A #\Z)
-              #\_
-              (:/ #\0 #\9)))
-        (:or ""
-             "::")
-        (:*
-         (:or (:/ #\a #\z)
-              (:/ #\A #\Z)
-              #\_
-              (:/ #\0 #\9)))) (token-TYPE (string->symbol lexeme)))
    
    
    ((:: (:+ (:or (:/ #\0 #\9)))
@@ -134,6 +121,8 @@
    ("]" 'RBRACK)
    ("$[" 'LTUP)
    ("|" 'VBAR)
+   ("||" 'OR)
+   ("&&" 'AND)
    ))
 
 (define mangle-symbol
@@ -142,6 +131,9 @@
       (string->symbol
        (string-append "__" (symbol->string x) "__"
                       (symbol->string sym))))))
+
+(define (mangle-with pfx sym)
+  (string->symbol (string-append pfx (symbol->string sym))))
 
 (define mir-parse
   (cfg-parser
@@ -154,10 +146,7 @@
    
    (grammar
     ;; Program header things
-    (<program> ((<module-declaration> 
-                 <import-declarations>
-                 <semi-list>) `(_program ,$1 ,$2 (_body ,@$3)))
-               ((<import-declarations>
+    (<program> ((<import-declarations>
                  <semi-list>) `(_program "" ,$1 (_body ,@$2))))
     (<module-declaration> ((NAMESPACE ID SEMI) (symbol->string $2)))
     (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
@@ -184,19 +173,24 @@
     (<declaration> ((ID = <expression>) `(set! ,$1 ,$3))
                    ((DEF ID = <expression>) `(define ,$2 ,$4))
                    
-                   ((DEFUN ID LPAREN 
-                           <arg-comma-list> RPAREN <type-name> <expression>) 
+                   ((DEF ID <type-name> = <expression>) `(define: ,$2 : ,$3 ,$5))
+                   
+                   ((FUN ID LPAREN 
+                         <arg-comma-list> RPAREN <type-name> <expression>) 
                     `(define: ,$2 : 
                        (-> ,@(map third $4) ,$6) (lambda: ,$4 : ,$6 ,$7)))
                    
-                   ((DEFUN ID < <types-comma-list> > 
+                   ((DEF ID < <types-comma-list> > 
                          LPAREN <arg-comma-list> RPAREN <type-name> <expression>) 
                     `(begin
                        (: ,$2 (All ,$4 (-> ,@(map third $7) ,$9)))
                        (define ,$2 (lambda: ,$7 : ,$9 ,$10))))
                    
-                   ((DEFSTRUCT ID LPAREN <arg-comma-list> RPAREN)
-                    `(_struct ,$2 ,@$4))
+                   ((INTERFACE ID LBRACE <arg-semi-list> RBRACE)
+                    `(_interface ,(mangle-with "%" $2) ,@$4))
+                   
+                   ((INTERFACE ID < <types-comma-list> > LBRACE <arg-semi-list> RBRACE)
+                    `(_interface-poly ,$4 ,(mangle-with "%" $2) ,@$7))
                    
                    ((DEFER <expression>) `(_defer ,$2))
                    ((RECOVER LPAREN <expression> RPAREN <expression>)
@@ -221,31 +215,48 @@
                       ((FOR <structure-prec>)
                        `(let/ec _break (_while #t ,$2)))
                       
-                      ((FOR ID TO <block-prec> <expression>)
-                       `(for ([,$2 (in-range ,$4)]) ,$5))
-                      
                       ((FUN LPAREN <arg-comma-list> RPAREN <type-name>
                             <structure-prec>)
                        `(lambda: ,$3 : ,$5 ,$6))
                       
-                      ((MAP ID IN <block-prec> <structure-prec>)
-                       `((_member ,$4 Map)
-                         (lambda(,$2) ,$5)))
+                      ((FOR ID IN <block-prec> <structure-prec>)
+                       `(for ([,$2 (->sequence ,$4)]) ,$5))
                       
-                      ((MAP ID IN <block-prec> WHERE <block-prec> <structure-prec>)
-                       `((_member ((_member ,$4 Filter) (lambda (,$2) ,$6)) Map)
-                         (lambda(,$2) ,$7)))
+                      ((FOR ID IN <block-prec> WHERE <block-prec> 
+                            <structure-prec>)
+                       `(for ([,$2 (->sequence ,$4)]
+                              #:when ,$6)
+                          ,$7))
+                      
+                      ((FOR ID IN <block-prec> COLLECT LBRACK RBRACK <type-name> <structure-prec>)
+                       `(for/slice (Vectorof ,$8) ([,$2 (->sequence ,$4)]) ,$9))
+                      
+                      ((FOR ID IN <block-prec> WHERE <block-prec> COLLECT LBRACK RBRACK <type-name>
+                            <structure-prec>)
+                       `(for/slice (Vectorof ,$10) ([,$2 (->sequence ,$4)] #:when ,$6)
+                          ,$11))
                       
                       ((YARN <structure-prec>) `(_yarn ,$2))
                       ((GUARD <structure-prec>) `(_guard ,$2))
+                      ((UNSAFE <structure-prec>) `(_unsafe ,$2))
                       ((MARK <structure-prec>)
                        `(let/ec _lol (define _break (cast _lol (-> Void)))
                           ,$2))
+                      
+                      ((NEW <type-name> LBRACE <semi-list> RBRACE)
+                       `(_object ,$2 ,@$4))
+                      
                       ((<block-prec>) $1))
     
     ;; Second precedence: blocks {...}
     (<block-prec> ((LBRACE <semi-list> RBRACE) `(let() ,@$2))
-                  ((<equality-prec>) $1))
+                  ((<and-prec>) $1))
+    
+    (<and-prec> ((<and-prec> AND <or-prec>) `(and ,$1 ,$3))
+                ((<or-prec>) $1))
+    
+    (<or-prec> ((<or-prec> OR <equality-prec>) `(or ,$1 ,$3))
+               ((<equality-prec>) $1))
     
     (<equality-prec> ((<equality-prec> === <comparison-prec>) `(eqv? ,$1 ,$3))
                      ((<equality-prec> !== <comparison-prec>) 
@@ -264,6 +275,7 @@
     (<times-prec> ((<times-prec> * <unary-prec>) `(* ,$1 ,$3))
                   ((<times-prec> % <unary-prec>) `(modulo ,$1 ,$3))
                   ((<times-prec> / <unary-prec>) `(/ ,$1 ,$3))
+                  ((<times-prec> \\ <unary-prec>) `(quotient ,$1 ,$3))
                   ((<unary-prec>) $1))
     
     ;; Unary operators. Shitty shim currently.
@@ -275,6 +287,10 @@
                     ((<funcall-prec> < <types-comma-list> >)
                      `(inst ,$1 ,@$3))
                     
+                    ;; HAX! Fix for foo<int>(bar) parsing wrongly
+                    ((<funcall-prec> < <type-name> > LPAREN <expression> RPAREN)
+                     `(_funcall (inst ,$1 ,$3) ,$6))
+                    
                     ((DCAST < <type-name> >)
                      `(lambda (x) (cast x ,$3)))
                     ((SCAST < <type-name> > LPAREN <expression> RPAREN)
@@ -284,11 +300,11 @@
                     
                     ((<funcall-prec> LBRACK <expression> RBRACK)
                      `(_index ,$1 ,$3))
-                    ((<funcall-prec> LBRACK <expression> -> <expression> RBRACK)
-                     `(_index_set ,$1 ,$3 ,$5))
+                    ((<funcall-prec> LBRACK <expression> COLON <expression> RBRACK)
+                     `(_range ,$1 ,$3 ,$5))
                     
                     
-                    ((<literal-prec> DOT ID)
+                    ((<funcall-prec> DOT ID)
                      `(_member ,$1 ,$3))
                     ((<literal-prec>) $1))
     
@@ -302,19 +318,29 @@
     
     
     ;; Type-related things
-    (<arg-comma-list> ((ID <type-name> COMMA <arg-comma-list>) 
+    (<arg-comma-list> ((ID <type-name> COMMA <arg-comma-list>)
                        (cons (list $1 ': $2) $4))
                       ((ID <type-name>) (list (list $1 ': $2)))
                       (() empty))
+    (<arg-semi-list> ((ID <type-name> SEMI <arg-semi-list>)
+                      (cons (list $1 ': $2) $4))
+                     ((ID <type-name>) (list (list $1 ': $2)))
+                     (() empty))
     (<types-comma-list> ((<type-name> COMMA <types-comma-list>) (cons $1 $3))
                         ((<type-name>) (list $1))
                         (() empty))
     
-    (<type-name> ((TYPE) $1)
-                 ((:FUN LPAREN <types-comma-list> RPAREN <type-name>)
+    (<type-name> ((ID) (string->symbol
+                        (string-append "%" (symbol->string $1))))
+                 ((VOID) '$void)
+                 ((FUN LPAREN <types-comma-list> RPAREN <type-name>)
                   `(-> ,@$3 ,$5))
                  ((<type-name> < <types-comma-list> >)
                   `(,$1 ,@$3))
+                 ((UNION < <types-comma-list> >)
+                  `(U ,@$3))
+                 ((LBRACK RBRACK <type-name>)
+                  `($slice ,$3))
                  ((LTUP <types-comma-list> RBRACK)
                   `(Vector ,@$2)))
     
