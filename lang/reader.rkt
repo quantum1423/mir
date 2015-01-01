@@ -1,7 +1,10 @@
-#lang racket
+#lang racket/base
+
 (require syntax/strip-context)
 (require "../parser.rkt")
-(require racket/provide)
+(require racket/provide
+         racket/port
+         racket/match)
 
 (provide (rename-out [mir-read read]
                      [mir-read-syntax read-syntax])
@@ -17,10 +20,10 @@
 (define (ast-prepare ast)
   (define haha
     (match ast
-      [`(_program ,modname
+      [`(@program ,modname
                   ,imports
                   ,body)
-       `(module lolo typed/racket/base
+       `(module compiled-racket racket/base
           (require mirstdlib)
           (require racket/unsafe/ops)
           (require racket/require)
@@ -28,7 +31,7 @@
           (require (for-syntax racket/string))
           (provide (all-defined-out))
           ,@(for/list ([imp imports])
-              `(_import ,imp))
+              `(@import ,imp))
           ,@(cdr body)
           )]))
   haha)
@@ -48,7 +51,7 @@
     [else `(require (filtered-in
                      (lambda (name)
                        (and
-                        (regexp-match #rx"^[A-Z]" name)
+                        (regexp-match #rx"^\\*\\*MIR-ID\\*\\*[A-Z]" name)
                         (string-append (first (reverse (string-split imp "/")))
                                        "::"
                                        name)))

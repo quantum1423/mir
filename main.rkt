@@ -1,5 +1,1 @@
-#lang racket
-(require "parser.rkt")
-(require "modules.rkt")
-(require racket/runtime-path)
-
+#lang racket/base
