@@ -1,0 +1,6 @@
+namespace io
+
+def SchemeToRWC(in, out) = object {
+  def buffer = __SCHEME("make-bytes")(65536)
+  def Read(n) {
+    

@@ -1,0 +1,47 @@
+namespace __RUNTIME__
+import "conc.mir"
+
+def _grand_lock = _mutex()
+
+def println(obj) = {
+  _grand_lock.Lock()
+  __SCHEME("print")(obj)
+  __SCHEME("newline")()
+  _grand_lock.Unlock()
+}
+
+def sleep = __SCHEME("thread-sleep!")
+
+def true = __SCHEME("#t")
+def false = __SCHEME("#f")
+
+// Datatype predicates
+
+def number? = __SCHEME("number?")
+def integer? = __SCHEME("integer?")
+def string? = __SCHEME("string?")
+def bytes? = __SCHEME("u8vector?")
+
+// Range and index
+
+def __range(vec, i, j) = {
+  if bytes?(vec) {
+    __SCHEME("subu8vector")(vec, i, j)
+  } else if string?(vec) {
+    __SCHEME("substring")(vec, i, j)
+  } else {
+    vec.Range(i, j)
+  }
+}
+
+def __index(vec, i) = {
+  if bytes?(vec) {
+    __SCHEME("u8vector-ref")(vec, i)
+  } else if string?(vec) {
+    __SCHEME("string-ref")(vec, i)
+  } else {
+    vec.Index(i)
+  }
+}
+
+
