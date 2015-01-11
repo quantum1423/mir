@@ -22,7 +22,7 @@
    HASH
    FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
    ERROR DEFER RECOVER GUARD INTERFACE YARN TO DEF
-   RETURN THIS
+   RETURN THIS INTO
    RANGE WHERE UNSAFE COLLECT FROM
    OBJECT AND OR WAIT SEND RECV REPLY
    ...
@@ -81,7 +81,7 @@
          "unsafe"
          "def"
          "return"
-         "and" "or" "not"
+         "and" "or" "not" "into"
          "range" "this"
          "where"
          "collect" "send" "recv"
@@ -242,6 +242,8 @@
                       
                       ((OBJECT FROM <structure-prec> LBRACE <semi-list> RBRACE)
                        `(@object-inherit ,$3 ,@$5))
+                      
+                      ((<structure-prec> INTO <block-prec>) `(@apply ,$3 ,$1))
                       
                       ((<block-prec>) $1))
     
