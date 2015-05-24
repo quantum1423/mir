@@ -1,6 +1,10 @@
-#lang racket
-(require "compile.rkt")
+#lang racket/base
+(require (for-syntax racket/base))
+(require compatibility/defmacro)
+(require mir/core/main)
+(provide (all-defined-out)
+         (all-from-out mir/core/main))
 
-(match (current-command-line-arguments)
-  [(vector "build" fname)
-   (build-from-file (path->complete-path fname))])
+;; Calling functions
+(define-macro (@funcall a . b)
+  (cons a b))

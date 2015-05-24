@@ -8,146 +8,7 @@
          racket/port
          racket/match
          racket/list)
-(require "define-lift.rkt")
-
-
-(define-tokens value-tokens
-  (NUM ID STR SYMBOL BTS))
-(define-empty-tokens syntax-tokens
-  (EOF
-   LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
-   SEMI COMMA DOT COLON
-   + - * / % .+ .- .* ./ ^ = := ++
-   === < != !== == <= >= > -> \\ 
-   HASH
-   FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
-   ERROR DEFER RECOVER GUARD INTERFACE YARN TO DEF
-   RETURN THIS INTO
-   RANGE WHERE UNSAFE COLLECT FROM
-   OBJECT AND OR WAIT SEND RECV REPLY
-   ...
-   ))
-
-(define (desynid q)
-  (string-append "mir-" (substring q 0 (sub1 (string-length q)))))
-
-(define (string-parse x)
-  (set! x (substring x 1 (sub1 (string-length x))))
-  (string-replace x "\\n" "\n"))
-
-(define (read-src-file x)
-  (with-output-to-string
-      (lambda ()
-        (with-input-from-file x
-          (lambda ()
-            (for ([x (in-lines)])
-              (match (string-trim x)
-                ["" (void)]
-                [(regexp #rx"^//") (void)]
-                [(or (regexp #rx"{$")
-                     (regexp #rx"\\[$")
-                     (regexp #rx"\\($")
-                     (regexp #rx";$")) (printf "~a\n" x)]
-                [else (printf "~a;\n" x)])))))))
-
-(define mir-lex
-  (lexer
-   ((eof) 'EOF)
-   (#\# 'HASH)
-   ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
-   ((:: "#\"" (:* (:~ #\")) #\") (token-BTS (string-parse (substring lexeme 1))))
-   
-   ((:or #\tab
-         #\space
-         #\newline) (mir-lex input-port))
-   
-   ((:or "fun"
-         "while"
-         "if"
-         "else"
-         "break"
-         "mark"
-         "namespace"
-         "import"
-         "defer" "from"
-         "error"
-         "guard"
-         "interface"
-         "reply"
-         "recover"
-         "yarn"
-         "object"
-         "for"
-         "unsafe"
-         "def"
-         "return"
-         "and" "or" "not" "into"
-         "range" "this"
-         "where"
-         "collect" "send" "recv"
-         
-         "=" ":=" "..." "++"
-         "==" "===" "!=" "!=="
-         "<" "<=" ">" ">=" "->"
-         "+" "-" "*" "\\" "/" "%" ".+" ".-" ".*" "./") 
-    (string->symbol (string-upcase lexeme)))
-   
-   ((:- (:: (:or (:/ #\a #\z)
-                 (:/ #\A #\Z)
-                 #\_)
-            (:*
-             (:or (:/ #\a #\z)
-                  (:/ #\A #\Z)
-                  #\_
-                  (:/ #\0 #\9)))
-            (:or ""
-                 "::")
-            (:*
-             (:or (:/ #\a #\z)
-                  (:/ #\A #\Z)
-                  #\_
-                  (:/ #\0 #\9)))
-            (:or "" "?"))) (token-ID 
-                            (mangle-identifier 
-                             (string->symbol lexeme))))
-   
-   
-   ((:: (:+ (:or (:/ #\0 #\9)))
-        (:or ""
-             (:: "." (:+ (:/ #\0 #\9))))) (token-NUM (string->number lexeme)))
-   
-   (";" 'SEMI)
-   ("," 'COMMA)
-   ("." 'DOT)
-   (":" 'COLON)
-   
-   ("{" 'LBRACE)
-   ("}" 'RBRACE)
-   ("(" 'LPAREN)
-   (")" 'RPAREN)
-   ("[" 'LBRACK)
-   ("]" 'RBRACK)
-   ("$[" 'LTUP)
-   ))
-
-(define mangle-symbol
-  (let ([x (gensym 'mangled)])
-    (lambda (sym)
-      (string->symbol
-       (string-append "__" (symbol->string x) "__"
-                      (symbol->string sym))))))
-
-(define (mangle-with pfx sym)
-  (string->symbol (string-append pfx (symbol->string sym))))
-
-(define (mangle-identifier id)
-  (match (symbol->string id)
-    [x (mangle-with "%%" id)]))
-
-(define (demangle id)
-  (string->symbol
-   (string-replace "%%" ""
-                   (symbol->string id))))
+(require "lexer.rkt")
 
 (define mir-parse
   (cfg-parser
@@ -161,8 +22,8 @@
    (grammar
     ;; Program header things
     (<program> ((<import-declarations>
-                 <semi-list>) `(@program "" ,$1 (@body ,@$2))))
-    (<module-declaration> ((NAMESPACE ID SEMI)  $2))
+                 <semi-list>) `(@program #f ,$1 (@body ,@$2)))
+               ((<expr-or-decl>) $1))
     (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
                            ((SEMI) empty)
                            (() empty))
@@ -184,12 +45,12 @@
                     ((<declaration>) $1))
     (<expression> ((<infix-math>) $1))
     ;; Declaration
-    (<declaration> ((ID = <expression>) `(set! ,$1 ,$3))
-                   ((DEF <id-comma-list> = <expression>) `(define-values ,$2 ,$4))
-                   ((DEF ID LPAREN <id-comma-list> RPAREN = <expression>)
-                    `(define ,$2 (lambda ,$4 ,$7)))
-                   ((DEF ID LPAREN <id-comma-list> COMMA ID ... RPAREN = <expression>)
-                    `(define ,$2 (@lambda-vargs ,$4 ,$6 ,$10)))
+    (<declaration> ((ID <- <expression>) `(set! ,$1 ,$3))
+                   ((ID = <expression>) `(define ,$1 ,$3))
+                   ((ID LPAREN <id-comma-list> RPAREN = <expression>)
+                    `(define ,$1 (lambda ,$3 ,$6)))
+                   ((ID LPAREN <id-comma-list> COMMA ID ... RPAREN = <expression>)
+                    `(define ,$1 (@lambda-vargs ,$3 ,$5 ,$9)))
                    
                    
                    ((DEFER <expression>) `(@defer ,$2))
@@ -203,11 +64,11 @@
     (<infix-math> ((<structure-prec>) $1))
     
     ;; Lowest precedence: structures like if, while, etc
-    (<structure-prec> ((IF <block-prec> <structure-prec>)
-                       `(when ,$2 ,$3))
-                      ((IF <block-prec> <structure-prec>
+    (<structure-prec> ((WHEN <block-prec> DO <structure-prec>)
+                       `(when ,$2 ,$4))
+                      ((IF <block-prec> THEN <structure-prec>
                            ELSE <structure-prec>)
-                       `(if ,$2 ,$3 ,$5))
+                       `(if ,$2 ,$4 ,$6))
                       
                       ((WHILE <block-prec> <structure-prec>)
                        `(let/ec @break (@while ,$2 ,$3)))
@@ -218,9 +79,9 @@
                        `(let/ec @break (for ([,$2 ,$4] #:when ,$6) ,$7)))
                       
                       ((FOR <id-comma-list> RANGE <block-prec> COLLECT <structure-prec>)
-                       `(for/pvec ((,$2 ,$4)) ,$6))
+                       `(for/list ((,$2 ,$4)) ,$6))
                       ((FOR <id-comma-list> RANGE <block-prec> WHERE <block-prec> COLLECT <structure-prec>)
-                       `(for/pvec ((,$2 ,$4) #:when ,$6) ,$8))
+                       `(for/list ((,$2 ,$4) #:when ,$6) ,$8))
                       
                       ((FUN LPAREN <id-comma-list> RPAREN
                             <structure-prec>)
@@ -305,17 +166,15 @@
                     ((<funcall-prec> LBRACK COLON <expression>  RBRACK)
                      `(@range ,$1 0 ,$4))
                     
-                    ((<funcall-prec> LBRACK <expression> -> <expression> RBRACK)
-                     `(@diff ,$1 ,$3 ,$5))
+                    ((<funcall-prec> DOT <literal-prec>)
+                     `(@curry ,$3 ,$1))
                     
-                    ((<funcall-prec> DOT ID)
-                     `(@member ,$1 ,$3))
+                    ((LPAREN <comma-list> RPAREN DOT <literal-prec>)
+                     `(@multicurry ,$5 ,$2))
+                    
                     ((<literal-prec>) $1))
     
     (<literal-prec> ((ID)  $1)
-                    ((SEND) '@send)
-                    ((RECV) '@recv)
-                    ((REPLY) '@reply)
                     ((NUM) $1)
                     ((STR) $1)
                     ((THIS) '(current-object))

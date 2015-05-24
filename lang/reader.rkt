@@ -17,11 +17,13 @@
                   ,imports
                   ,body)
        `(module lolo racket/base
-          (require mirstdlib)
+          (require mir)
           (provide (all-defined-out))
           (require racket/provide)
           (require racket/require)
           (require racket/port)
+          (require racket/set)
+          (require racket/function)
           (require (for-syntax racket/base
                                racket/string))
           ,@(for/list ([imp imports])

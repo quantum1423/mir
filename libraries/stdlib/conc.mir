@@ -19,25 +19,36 @@ def _chan() = object {
   def message = __SCHEME("#f")
   def bench = _cvar()
   def lock = _mutex()
-  def status = 0 // 0 means nobody on bench, 1 means reader waiting, 2 means writer waiting
+  def wlock = _mutex()
+  def rlock = _mutex()
+  def message_in = __SCHEME("#f")
+  def want = __SCHEME("#f")
   
   def Send(msg) = {
     lock.Lock()
-    while status != 1 bench.Wait(lock) // wait until somebody wants a message
+    // Wait until want
+    while want == __SCHEME("#f") bench.Wait(lock)
+    // Put message in
     message = msg
-    status = 2
+    message_in = __SCHEME("#t")
     bench.Signal()
-    while status != 0 bench.Wait(lock) // wait until nobody in
+    // Wait until message gotten
+    while message_in bench.Wait(lock)
     lock.Unlock()
   }
   
   def Recv() = {
     lock.Lock()
-    status = 1
+    want = __SCHEME("#t")
     bench.Signal()
-    while status != 2 bench.Wait(lock)
+    // Wait until message available
+    while message_in == __SCHEME("#f") bench.Wait(lock)
+    // obtain message
     def toret = message
-    status = 0
+    message_in = false
+    want = __SCHEME("#f")
+    bench.Signal()
+    lock.Unlock()
     toret
   }
 }
@@ -121,8 +132,8 @@ def __reply(rep) = {
 }
 
 def __send(yrn, msg) = {
-  def repchan = _achan(1)
+  def repchan = _chan()
   __SCHEME("thread-send")(yrn, __SCHEME("cons")(msg, repchan))
-  _future(repchan.Recv)
+  repchan.Recv()
 }
   
