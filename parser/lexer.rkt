@@ -1,11 +1,12 @@
-#lang racket
-(require parser-tools/lex)
+#lang racket/base
+(require parser-tools/lex
+         racket/string)
 (require (prefix-in : parser-tools/lex-sre))
 (provide (all-defined-out))
 
 
 (define-tokens value-tokens
-  (NUM ID STR SYMBOL BTS))
+  (INT ID STR SYMBOL BTS))
 (define-empty-tokens syntax-tokens
   (EOF  
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
@@ -26,83 +27,83 @@
   (string-replace x "\\n" "\n"))
 
 (define mir-lex
-  (lexer-src-pos
-   ((eof) 'EOF)
-   (#\# 'HASH)
-   ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
-   ((:: "#\"" (:* (:~ #\")) #\") (token-BTS (string-parse (substring lexeme 1))))
-   
-   ((:or #\tab
-         #\space
-         #\newline) (mir-lex input-port))
-   
-   ((:or "fun"
-         "while"
-         "if"
-         "else"
-         "break"
-         "mark"
-         "namespace"
-         "import"
-         "defer" "from"
-         "error"
-         "guard"
-         "interface"
-         "reply"
-         "recover"
-         "yarn"
-         "object"
-         "then"
-         "do"
-         "for"
-         "unsafe"
-         "def"
-         "return"
-         "when"
-         "and" "or" "not" "into"
-         "range" "this"
-         "where"
-         "collect" "send" "recv"
-         
-         "=" ":=" "..." "++"
-         "==" "===" "!=" "!=="
-         "<" "<=" ">" ">=" "->" "<-"
-         "+" "-" "*" "\\" "/" "%" ".+" ".-" ".*" "./") 
-    (string->symbol (string-upcase lexeme)))
-   
-   ((:- (:: (:or (:/ #\a #\z)
-                 (:/ #\A #\Z)
-                 #\_)
-            (:*
-             (:or (:/ #\a #\z)
-                  (:/ #\A #\Z)
-                  #\_
-                  (:/ #\0 #\9)))
-            (:or ""
-                 "::")
-            (:*
-             (:or (:/ #\a #\z)
-                  (:/ #\A #\Z)
-                  #\_
-                  (:/ #\0 #\9)))
-            (:or "" "?" "!"))) (token-ID 
-                            (string->symbol lexeme)))
-   
-   
-   ((:: (:+ (:or (:/ #\0 #\9)))
-        (:or ""
-             (:: "." (:+ (:/ #\0 #\9))))) (token-NUM (string->number lexeme)))
-   
-   (";" 'SEMI)
-   ("," 'COMMA)
-   ("." 'DOT)
-   (":" 'COLON)
-   
-   ("{" 'LBRACE)
-   ("}" 'RBRACE)
-   ("(" 'LPAREN)
-   (")" 'RPAREN)
-   ("[" 'LBRACK)
-   ("]" 'RBRACK)
-   ("$[" 'LTUP)
-   ))
+  (lambda (in)
+    (port-count-lines! in)
+    ((lexer-src-pos
+      ((eof) 'EOF)
+      (#\# 'HASH)
+      ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
+      ((:: "#\"" (:* (:~ #\")) #\") (token-BTS (string-parse (substring lexeme 1))))
+      
+      ((:or #\tab
+            #\space
+            #\newline) (return-without-pos (mir-lex input-port)))
+      
+      ((:or "fun"
+            "while"
+            "if"
+            "else"
+            "break"
+            "mark"
+            "namespace"
+            "import"
+            "defer" "from"
+            "error"
+            "guard"
+            "interface"
+            "reply"
+            "recover"
+            "yarn"
+            "object"
+            "then"
+            "do"
+            "for"
+            "unsafe"
+            "def"
+            "return"
+            "when"
+            "and" "or" "not" "into"
+            "range" "this"
+            "where"
+            "collect" "send" "recv"
+            
+            "=" ":=" "..." "++"
+            "==" "===" "!=" "!=="
+            "<" "<=" ">" ">=" "->" "<-"
+            "+" "-" "*" "\\" "/" "%" ".+" ".-" ".*" "./") 
+          (string->symbol (string-upcase lexeme)))
+      
+      ((:- (:: (:or (:/ #\a #\z)
+                    (:/ #\A #\Z)
+                    #\_)
+               (:*
+                (:or (:/ #\a #\z)
+                     (:/ #\A #\Z)
+                     #\_
+                     (:/ #\0 #\9)))
+               (:or ""
+                    "::")
+               (:*
+                (:or (:/ #\a #\z)
+                     (:/ #\A #\Z)
+                     #\_
+                     (:/ #\0 #\9)))
+               (:or "" "?" "!"))) (token-ID 
+                                   (string->symbol lexeme)))
+      
+      
+      ((:: (:+ (:or (:/ #\0 #\9)))) (token-INT (string->number lexeme)))
+      
+      (";" 'SEMI)
+      ("," 'COMMA)
+      ("." 'DOT)
+      (":" 'COLON)
+      
+      ("{" 'LBRACE)
+      ("}" 'RBRACE)
+      ("(" 'LPAREN)
+      (")" 'RPAREN)
+      ("[" 'LBRACK)
+      ("]" 'RBRACK)
+      ("$[" 'LTUP)
+      ) in)))
