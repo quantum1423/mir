@@ -6,9 +6,16 @@
                           Def))
 (define-type Expression (U Identifier
                            Binexp
+                           Funcall
+                           
                            IntLiteral
                            StrLiteral
-                           TupLiteral))
+                           TupLiteral
+                           FunLiteral
+                           
+                           Block
+                           
+                           If))
 
 (define-type Binop (U '+ '- '* '/ '++))
 
@@ -40,6 +47,28 @@
    [right : Expression])
   #:transparent)
 
+(struct Funcall
+  ([start-pos : Position]
+   [end-pos : Position]
+   [function : Expression]
+   [arguments : (Listof Expression)])
+  #:transparent)
+
+
+(struct Block
+  ([start-pos : Position]
+   [end-pos : Position]
+   [body : (Listof Statement)])
+  #:transparent)
+
+(struct If
+  ([start-pos : Position]
+   [end-pos : Position]
+   [condition : Expression]
+   [true-val : Expression]
+   [false-val : Expression])
+  #:transparent)
+
 
 (struct StrLiteral
   ([start-pos : Position]
@@ -57,4 +86,11 @@
   ([start-pos : Position]
    [end-pos : Position]
    [contents : (Listof Expression)])
+  #:transparent)
+
+(struct FunLiteral
+  ([start-pos : Position]
+   [end-pos : Position]
+   [arguments : (Listof (Pair Identifier Type))]
+   [body : Expression])
   #:transparent)

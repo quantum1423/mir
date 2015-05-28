@@ -5,7 +5,7 @@
                               (Option Integer)
                               (Option Integer)))
 
-(define-type Type (U TAuto TUnit TParam))
+(define-type Type (U TAuto TUnit TParam TFunction))
 
 (struct TAuto
   ([start-pos : Position]
@@ -23,4 +23,11 @@
    [end-pos : Position]
    [name : Symbol]
    [args : (Listof Type)])
+  #:transparent)
+
+(struct TFunction
+  ([start-pos : Position]
+   [end-pos : Position]
+   [args : (Listof Type)]
+   [result : Type])
   #:transparent)

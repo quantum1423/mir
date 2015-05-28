@@ -49,25 +49,31 @@
     ;; Semicolon list of expressions or declarations
     (<semi-list> ((<expr-or-decl> SEMI <semi-list>) (cons $1 $3))
                  ((<expr-or-decl>) (list $1))
-                 ((<expr-or-decl> SEMI) (list $1))
                  (() empty))
     ;; Comma list of expressions
-    (<comma-list> ((<expr> COMMA <comma-list>) (cons $1 $3))
-                  ((<expr>) (list $1))
+    (<comma-list> ((<blk> COMMA <comma-list>) (cons $1 $3))
+                  ((<blk>) (list $1))
                   (() empty))
+    (<comma-last-list> ((<blk> COMMA <comma-list>) (cons $1 $3))
+                       ((<blk> COMMA) (list $1))
+                       (() empty))
     (<type-comma-list> ((<type> COMMA <type-comma-list>) (cons $1 $3))
-                  ((<type>) (list $1))
-                  (() empty))
+                       ((<type>) (list $1))
+                       (() empty))
     ;; Comma list of ids
     (<id-comma-list> ((ID COMMA <comma-list>) (cons $1 $3))
                      ((ID) (list $1))
                      (() empty))
+    ;; Argument list
+    (<arg-list> ((<id> <type> COMMA <arg-list>) (cons (cons $1 $2) $4))
+                ((<id> <type>) (list (cons $1 $2)))
+                (() empty))
     ;; Expression or declaration
-    (<expr-or-decl> ((<expr>) $1)
+    (<expr-or-decl> ((<blk>) $1)
                     ((<declaration>) $1))
     
     ;; declarations
-    (<declaration> ((ID = <expr>)
+    (<declaration> ((ID = <blk>)
                     (Def (psn $1-start-pos)
                          (psn $3-end-pos)
                          (liftpsn TAuto 1 1)
@@ -75,18 +81,39 @@
                                      (psn $1-end-pos)
                                      $1)
                          $3))
-                   ((ID <type> = <expr>)
+                   ((ID <type> = <blk>)
                     (liftpsn Def
                              1 4
                              $2
                              (liftpsn Identifier 1 1 $1)
-                             $4)))
+                             $4))
+                   ((<id> LPAREN <arg-list> RPAREN <type> = <blk>)
+                    (liftpsn Def
+                             1 7
+                             $5
+                             $1
+                             (liftpsn FunLiteral
+                                      7 7
+                                      $3
+                                      $7))))
+    
+    (<id> ((ID) (Identifier (psn $1-start-pos)
+                            (psn $1-end-pos) $1)))
+    
+    ;; block-precedence expressions
+    (<blk> ((IF <blk> THEN <blk> ELSE <blk>) (liftpsn If 1 6
+                                                      $2
+                                                      $4
+                                                      $6))
+           ((FOR <blk> DO <blk>) (error "WHILE not supported"))
+                          
+           ((FUN LPAREN <arg-list> RPAREN <expr>) (liftpsn FunLiteral 1 5
+                                                           $3
+                                                           $5))
+           ((<expr>) $1))
     
     ;; most expressions
-    (<expr> ((ID) (Identifier (psn $1-start-pos)
-                              (psn $1-end-pos) $1))
-            ((<literal>) $1)
-            ((<expr> + <expr>) (Binexp (psn $1-start-pos)
+    (<expr> ((<expr> + <expr>) (Binexp (psn $1-start-pos)
                                        (psn $3-end-pos)
                                        '+
                                        $1
@@ -108,19 +135,31 @@
                                        $3))
             
             ((<expr> ++ <expr>) (liftpsn Binexp 1 3
-                                        '++ $1 $3))
+                                         '++ $1 $3))
+            ((<tight>) $1)
             )
+    
+    ;; tight-binding expressions
+    (<tight> ((<tight> LPAREN <comma-list> RPAREN) (liftpsn Funcall 1 4
+                                                            $1 $3))
+             ((LPAREN <blk> RPAREN) $2)
+             ((LBRACE <semi-list> RBRACE) (liftpsn Block 1 3 $2))
+             ((<literal>) $1))
     
     ;; literals
     (<literal> ((STR) (liftpsn StrLiteral 1 1 $1))
                ((INT) (liftpsn IntLiteral 1 1 $1))
-               ((LBRACK <comma-list> RBRACK) (liftpsn TupLiteral 1 3 $2)))
+               ((LPAREN <comma-last-list> RPAREN) (liftpsn TupLiteral 1 3 $2))
+               ((<id>) $1))
     
     ;; types
     (<type> ((ID) (liftpsn TUnit 1 1 $1))
             ((ID < <type-comma-list> >) (liftpsn TParam 1 4
                                                  $1
-                                                 $3)))
+                                                 $3))
+            ((FUN LPAREN <type-comma-list> RPAREN <type>) (liftpsn TFunction 1 5
+                                                                   $3
+                                                                   $5)))
     
     
     )))
@@ -145,6 +184,7 @@
               [(string-append (? (λ(x) (not (equal? "" (string-trim x)))) a) "//" rst)
                (displayln (semicolify a))]
               [i (displayln (semicolify i))])))))
+  (displayln str)
   (open-input-string str))
 
 (define (semicolify ln)
@@ -156,6 +196,5 @@
     [(string-append _ "(") ln]
     [_ (string-append ln ";")]))
 
-(string->ast "x = [1, [2, 3, 4], 3]
-y = [2, 3, 4]
-x ++ y")
+(string->ast
+ "eff(x fun(A) A) A = x()")

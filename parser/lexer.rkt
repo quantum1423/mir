@@ -13,12 +13,11 @@
    SEMI COMMA DOT COLON
    + - * / % .+ .- .* ./ ^ = := ++
    === < != !== == <= >= > -> \\  <-
-   HASH
-   FUN WHILE IF ELSE BREAK MARK NAMESPACE IMPORT FOR
-   ERROR DEFER RECOVER GUARD INTERFACE YARN TO DEF
-   RETURN THIS INTO WHEN DO THEN
-   RANGE WHERE UNSAFE COLLECT FROM
-   OBJECT AND OR WAIT SEND RECV REPLY
+   FUN FOR DO BLK
+   IF THEN ELSE
+   END
+   
+   IMPORT
    ...
    ))
 
@@ -39,37 +38,13 @@
             #\space
             #\newline) (return-without-pos (mir-lex input-port)))
       
-      ((:or "fun"
-            "while"
-            "if"
-            "else"
-            "break"
-            "mark"
-            "namespace"
-            "import"
-            "defer" "from"
-            "error"
-            "guard"
-            "interface"
-            "reply"
-            "recover"
-            "yarn"
-            "object"
-            "then"
-            "do"
-            "for"
-            "unsafe"
-            "def"
-            "return"
-            "when"
-            "and" "or" "not" "into"
-            "range" "this"
-            "where"
-            "collect" "send" "recv"
+      ((:or "fun" "if" "then" "for" "do" "import" "when" "end"
+            
+            "blk"
             
             "=" ":=" "..." "++"
             "==" "===" "!=" "!=="
-            "<" "<=" ">" ">=" "->" "<-"
+            "<" "<=" ">" ">=" "->" "<-" "else"
             "+" "-" "*" "\\" "/" "%" ".+" ".-" ".*" "./") 
           (string->symbol (string-upcase lexeme)))
       
