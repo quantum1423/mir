@@ -1,40 +1,23 @@
-#lang racket
-(require syntax/strip-context)
-(require "../parser.rkt")
-(require racket/provide)
-(provide (rename-out [mir-read read]
-                     [mir-read-syntax read-syntax])
-         get-info)
-(define (mir-read (in (current-input-port)))
-  (ast-prepare (string->ast (pre-parse in))))
-(define (mir-read-syntax src in)
-  (strip-context
-   (datum->syntax #f (mir-read in))))
-(define (ast-prepare ast)
-  (define haha
-    (match ast
-      [`(@program ,modname
-                  ,imports
-                  ,body)
-       `(module lolo racket/base
-          (require mir)
-          (provide (all-defined-out))
-          (require racket/provide)
-          (require racket/require)
-          (require racket/port)
-          (require racket/set)
-          (require racket/function)
-          (require (for-syntax racket/base
-                               racket/string))
-          ,@(for/list ([imp imports])
-              `(@import ,imp))
-          ,@(cdr body)
-          )]))
-  haha)
-(define (get-info in mod line col pos)
-  (lambda (key default)
-    (case key
-      [(color-lexer)
-       (dynamic-require 'syntax-color/default-lexer
-                        'default-lexer)]
-      [else default])))
+#lang s-exp syntax/module-reader
+mir/lang/semantics
+#:read my-read
+#:read-syntax my-read-syntax
+#:whole-body-readers? #t
+
+(require "../parser/main.rkt"
+         "../compiler.rkt"
+         racket/string
+         racket/port)
+
+(define (my-read in)
+  (syntax->datum (my-read-syntax #f in)))
+
+(define (my-read-syntax src ip)
+  (parameterize ([SRC src])
+    (finish-compile
+     (compile-ast
+      (string->ast
+       (with-output-to-string
+        (lambda()
+          (copy-port ip
+                     (current-output-port)))))))))

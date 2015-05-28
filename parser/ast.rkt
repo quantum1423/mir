@@ -11,6 +11,8 @@
                            IntLiteral
                            StrLiteral
                            TupLiteral
+                           LstLiteral
+                           
                            FunLiteral
                            
                            Block
@@ -83,6 +85,12 @@
   #:transparent)
 
 (struct TupLiteral
+  ([start-pos : Position]
+   [end-pos : Position]
+   [contents : (Listof Expression)])
+  #:transparent)
+
+(struct LstLiteral
   ([start-pos : Position]
    [end-pos : Position]
    [contents : (Listof Expression)])

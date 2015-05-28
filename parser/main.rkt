@@ -14,6 +14,7 @@
 (require "lexer.rkt")
 (require "ast.rkt")
 (require "types.rkt")
+(provide string->ast)
 
 (define-macro (liftpsn comb a b . rst)
   `(,comb (psn ,(string->symbol (format "$~a-start-pos" a)))
@@ -150,6 +151,7 @@
     (<literal> ((STR) (liftpsn StrLiteral 1 1 $1))
                ((INT) (liftpsn IntLiteral 1 1 $1))
                ((LPAREN <comma-last-list> RPAREN) (liftpsn TupLiteral 1 3 $2))
+               ((LBRACK <comma-list> RBRACK) (liftpsn LstLiteral 1 3 $2))
                ((<id>) $1))
     
     ;; types
@@ -184,7 +186,7 @@
               [(string-append (? (λ(x) (not (equal? "" (string-trim x)))) a) "//" rst)
                (displayln (semicolify a))]
               [i (displayln (semicolify i))])))))
-  (displayln str)
+  ;(displayln str)
   (open-input-string str))
 
 (define (semicolify ln)
@@ -196,5 +198,5 @@
     [(string-append _ "(") ln]
     [_ (string-append ln ";")]))
 
-(string->ast
- "eff(x fun(A) A) A = x()")
+#;(string->ast
+ "xaxa = [1, 2, 3, 4, 5]")
