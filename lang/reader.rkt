@@ -1,5 +1,5 @@
 #lang s-exp syntax/module-reader
-mir/lang/semantics
+typed/racket/base
 #:read my-read
 #:read-syntax my-read-syntax
 #:whole-body-readers? #t
@@ -13,11 +13,14 @@ mir/lang/semantics
   (syntax->datum (my-read-syntax #f in)))
 
 (define (my-read-syntax src ip)
-  (parameterize ([SRC src])
-    (finish-compile
-     (compile-ast
-      (string->ast
-       (with-output-to-string
-        (lambda()
-          (copy-port ip
-                     (current-output-port)))))))))
+  (cons (datum->syntax #f
+                       '(require mir)
+                       #f)
+        (parameterize ([SRC src])
+          (finish-compile
+           (compile-ast
+            (string->ast
+             (with-output-to-string
+              (lambda()
+                (copy-port ip
+                           (current-output-port))))))))))

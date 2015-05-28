@@ -29,7 +29,6 @@
                                         (map finish-compile ast)
                                         #f)]
     [`(,NdName ,start-loc ,end-loc . ,rst)
-     (pretty-print ast)
      (define args (map finish-compile rst))
      (datum->syntax #f
                     (cons NdName args)
