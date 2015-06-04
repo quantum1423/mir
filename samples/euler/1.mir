@@ -1,6 +1,0 @@
-#lang mir
-import "io"
-
-// Find the sum of all the multiples of 3 or 5 below 1000.
-
-for i range 1000 where i%3 == 0 or i%5 == 0 collect i into sum

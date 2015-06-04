@@ -26,3 +26,10 @@
 
 ;; Types
 (define-type (TUnit x) x)
+
+;; Unsafe
+(require racket/unsafe/ops)
+(: :+ (-> Fixnum Fixnum Fixnum))
+(define :+ unsafe-fx+)
+(: :- (-> Fixnum Fixnum Fixnum))
+(define :- unsafe-fx-)

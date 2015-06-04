@@ -7,19 +7,38 @@
          racket/string
          racket/port
          racket/match
-         racket/list)
+         racket/list
+         racket/pretty)
 (require compatibility/defmacro)
 (require (for-syntax racket/base
            racket/format))
 (require "lexer.rkt")
-(require "ast.rkt")
-(require "types.rkt")
-(provide string->ast)
+(provide string->ast
+         mir-parse
+         pre-parse
+         FILENAME)
+
+(define FILENAME (make-parameter #f))
 
 (define-macro (liftpsn comb a b . rst)
   `(,comb (psn ,(string->symbol (format "$~a-start-pos" a)))
-           (psn ,(string->symbol (format "$~a-end-pos" b)))
-           . ,rst))
+          (psn ,(string->symbol (format "$~a-end-pos" b)))
+          . ,rst))
+
+(define-macro (pos-lift a b expr)
+  `(let ([poz-a ,(string->symbol (format "$~a-start-pos" a))]
+         [poz-b ,(string->symbol (format "$~a-end-pos" b))])
+     (datum->syntax
+      #f
+      ,expr
+      (vector
+       (FILENAME)
+       (position-line poz-a)
+       (position-col poz-b)
+       (position-offset poz-a)
+       (- (position-offset poz-b)
+          (position-offset poz-a))
+       ))))
 
 (define (psn x)
   (match x
@@ -31,19 +50,35 @@
    (start <program>)
    (end EOF)
    (tokens value-tokens syntax-tokens)
-   (error (lambda (a b c d e)
-            (error (format "Parse error: ~v ~v ~v ~v ~v" a b c d e))))
+   (error (lambda (a b c poz-a poz-b)
+            (raise-syntax-error
+             'mir-parse
+             (if c (format "Unexpected ~a (~a)" b c)
+                 (format "Unexpected ~a" b))
+             (datum->syntax
+              #f
+              (path->string (FILENAME))
+              (vector
+               (FILENAME)
+               (position-line poz-a)
+               (position-col poz-b)
+               (position-offset poz-a)
+               (- (position-offset poz-b)
+                  (position-offset poz-a)))))))
    
-   (precs (right ++)
-          (left + -)
+   (precs (nonassoc < > <= >= ==)
+          (right ++)
+          (left + - :+ :-)
           (left * /))
    
    (src-pos)
+   ;(yacc-output "/scratch/loool.txt")
+   ;(debug "/scratch/hahaha.txt")
    
    (grammar
     ;; Program header things
     (<program> ((<import-declarations>
-                 <semi-list>) (Program #f $1 $2)))
+                 <semi-list>) $2))
     (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
                            ((SEMI) empty)
                            (() empty))
@@ -66,102 +101,72 @@
                      ((ID) (list $1))
                      (() empty))
     ;; Argument list
-    (<arg-list> ((<id> <type> COMMA <arg-list>) (cons (cons $1 $2) $4))
-                ((<id> <type>) (list (cons $1 $2)))
+    (<arg-list> ((<id> <type> COMMA <arg-list>) (cons (list $1 ': $2) $4))
+                ((<id> <type>) (list (list $1 ': $2)))
                 (() empty))
     ;; Expression or declaration
     (<expr-or-decl> ((<blk>) $1)
                     ((<declaration>) $1))
     
     ;; declarations
-    (<declaration> ((ID = <blk>)
-                    (Def (psn $1-start-pos)
-                         (psn $3-end-pos)
-                         (liftpsn TAuto 1 1)
-                         (Identifier (psn $1-start-pos)
-                                     (psn $1-end-pos)
-                                     $1)
-                         $3))
+    (<declaration> ((LET <definition>) $2))
+    (<definition> ((ID = <blk>)
+                    (pos-lift 1 3 `(define ,$1 ,$3)))
                    ((ID <type> = <blk>)
-                    (liftpsn Def
-                             1 4
-                             $2
-                             (liftpsn Identifier 1 1 $1)
-                             $4))
+                    (pos-lift 1 4 `(define ,$1 : ,$2 ,$4)))
                    ((<id> LPAREN <arg-list> RPAREN <type> = <blk>)
-                    (liftpsn Def
-                             1 7
-                             $5
-                             $1
-                             (liftpsn FunLiteral
-                                      7 7
-                                      $3
-                                      $7))))
+                    (pos-lift 1 7 `(begin
+                                     (: ,$1 (-> ,@(map third $3) ,$5))
+                                     (define (,$1 . ,$3) : ,$5 ,$7))))
+                   )
     
-    (<id> ((ID) (Identifier (psn $1-start-pos)
-                            (psn $1-end-pos) $1)))
+    (<id> ((ID) (pos-lift 1 1 $1)))
     
     ;; block-precedence expressions
-    (<blk> ((IF <blk> THEN <blk> ELSE <blk>) (liftpsn If 1 6
-                                                      $2
-                                                      $4
-                                                      $6))
-           ((FOR <blk> DO <blk>) (error "WHILE not supported"))
+    (<blk> ((IF <blk> THEN <blk> ELSE <blk>) (pos-lift 1 6
+                                                       `(if ,$2 ,$4 ,$6)))
                           
-           ((FUN LPAREN <arg-list> RPAREN <expr>) (liftpsn FunLiteral 1 5
-                                                           $3
-                                                           $5))
+           ((FUN LPAREN <arg-list> RPAREN <blk>) (pos-lift 1 5
+                                                             `(lambda (,$3) ,$5)))
            ((<expr>) $1))
     
     ;; most expressions
-    (<expr> ((<expr> + <expr>) (Binexp (psn $1-start-pos)
-                                       (psn $3-end-pos)
-                                       '+
-                                       $1
-                                       $3))
-            ((<expr> - <expr>) (Binexp (psn $1-start-pos)
-                                       (psn $3-end-pos)
-                                       '-
-                                       $1
-                                       $3))
-            ((<expr> * <expr>) (Binexp (psn $1-start-pos)
-                                       (psn $3-end-pos)
-                                       '*
-                                       $1
-                                       $3))
-            ((<expr> / <expr>) (Binexp (psn $1-start-pos)
-                                       (psn $3-end-pos)
-                                       '/
-                                       $1
-                                       $3))
+    (<expr> ((<expr> + <expr>) (pos-lift 1 3 `(+ ,$1 ,$3)))
+            ((<expr> :+ <expr>) (pos-lift 1 3 `(:+ ,$1 ,$3)))
+            ((<expr> - <expr>) (pos-lift 1 3 `(- ,$1 ,$3)))
+            ((<expr> :- <expr>) (pos-lift 1 3 `(:- ,$1 ,$3)))
+            ((<expr> * <expr>) (pos-lift 1 3 `(* ,$1 ,$3)))
+            ((<expr> / <expr>) (pos-lift 1 3 `(/ ,$1 ,$3)))
             
-            ((<expr> ++ <expr>) (liftpsn Binexp 1 3
-                                         '++ $1 $3))
+            ((<expr> == <expr>) (pos-lift 1 3 `(eqv? ,$1 ,$3)))
+            ((<expr> < <expr>) (pos-lift 1 3 `(< ,$1 ,$3)))
+            
+            ((<expr> ++ <expr>) (pos-lift 1 3 `(append ,$1 ,$3)))
             ((<tight>) $1)
             )
     
     ;; tight-binding expressions
-    (<tight> ((<tight> LPAREN <comma-list> RPAREN) (liftpsn Funcall 1 4
-                                                            $1 $3))
+    (<tight> ((<tight> LPAREN <comma-list> RPAREN) (pos-lift 1 4
+                                                             `(,$1 . ,$3)))
              ((LPAREN <blk> RPAREN) $2)
-             ((LBRACE <semi-list> RBRACE) (liftpsn Block 1 3 $2))
+             ((LBRACE <semi-list> RBRACE) (pos-lift 1 3
+                                                    `(let() . ,$2)))
+             ((__RSPLICE__ LPAREN STR RPAREN) (pos-lift 1 4
+                                                    (read (open-input-string $3))))
              ((<literal>) $1))
     
     ;; literals
-    (<literal> ((STR) (liftpsn StrLiteral 1 1 $1))
-               ((INT) (liftpsn IntLiteral 1 1 $1))
-               ((LPAREN <comma-last-list> RPAREN) (liftpsn TupLiteral 1 3 $2))
-               ((LBRACK <comma-list> RBRACK) (liftpsn LstLiteral 1 3 $2))
+    (<literal> ((STR) (pos-lift 1 1 $1))
+               ((INT) (pos-lift 1 1 $1))
+               ((LPAREN <comma-last-list> RPAREN) (pos-lift 1 3 `(vector ,$2)))
+               ((LBRACK <comma-list> RBRACK) (pos-lift 1 3 `(list ,$2)))
                ((<id>) $1))
     
     ;; types
-    (<type> ((ID) (liftpsn TUnit 1 1 $1))
-            ((ID < <type-comma-list> >) (liftpsn TParam 1 4
-                                                 $1
-                                                 $3))
-            ((FUN LPAREN <type-comma-list> RPAREN <type>) (liftpsn TFunction 1 5
-                                                                   $3
-                                                                   $5)))
+    (<type> ((ID) (pos-lift 1 1 $1))
+            ((ID < <type-comma-list> >) (pos-lift 1 4 `(,$1 . ,$3)))
+            ((FUN LPAREN <type-comma-list> RPAREN <type>) (pos-lift 1 5
+                                                                    `(-> ,@$3 ,$5))))
     
     
     )))
@@ -176,18 +181,11 @@
   (append (map fun slst) (drop lst (sub1 (length lst)))))
 
 (define (pre-parse port)
-  (define str
-    (with-output-to-string
-        (lambda ()
-          (for ([i (in-lines port)])
-            (match (string-trim i)
-              ["" (void)]
-              [(string-append (? (λ(x) (equal? "" (string-trim x)))) "//" rst) (void)]
-              [(string-append (? (λ(x) (not (equal? "" (string-trim x)))) a) "//" rst)
-               (displayln (semicolify a))]
-              [i (displayln (semicolify i))])))))
-  ;(displayln str)
-  (open-input-string str))
+  (define-values (in out) (make-pipe))
+  (for ([i (in-lines port)])
+    (displayln (semicolify i) out))
+  (close-output-port out)
+  in)
 
 (define (semicolify ln)
   (match ln
@@ -198,5 +196,4 @@
     [(string-append _ "(") ln]
     [_ (string-append ln ";")]))
 
-#;(string->ast
- "xaxa = [1, 2, 3, 4, 5]")
+;(string->ast "f(x Integer) Integer = x;")

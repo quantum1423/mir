@@ -5,6 +5,7 @@ typed/racket/base
 #:whole-body-readers? #t
 
 (require "../parser/main.rkt"
+         "../parser/lexer.rkt"
          "../compiler.rkt"
          racket/string
          racket/port)
@@ -13,14 +14,12 @@ typed/racket/base
   (syntax->datum (my-read-syntax #f in)))
 
 (define (my-read-syntax src ip)
-  (cons (datum->syntax #f
-                       '(require mir)
-                       #f)
-        (parameterize ([SRC src])
-          (finish-compile
-           (compile-ast
-            (string->ast
-             (with-output-to-string
-              (lambda()
-                (copy-port ip
-                           (current-output-port))))))))))
+  (define lol ip)
+  (parameterize ([FILENAME src])
+    (cons (datum->syntax #f
+                         '(require mir)
+                         #f)
+          (mir-parse
+           (lambda()
+             (mir-lex
+              lol))))))

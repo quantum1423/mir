@@ -10,8 +10,8 @@
 (define-empty-tokens syntax-tokens
   (EOF  
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
-   SEMI COMMA DOT COLON
-   + - * / % .+ .- .* ./ ^ = := ++
+   SEMI COMMA DOT COLON __RSPLICE__ LET
+   + - * / % :+ :- :* :/ ^ = := ++
    === < != !== == <= >= > -> \\  <-
    FUN FOR DO BLK
    IF THEN ELSE
@@ -25,27 +25,39 @@
   (set! x (substring x 1 (sub1 (string-length x))))
   (string-replace x "\\n" "\n"))
 
+(define LAST #f)
+
 (define mir-lex
   (lambda (in)
+    #;(when LAST
+      (write (token-name (position-token-token LAST)))
+      (newline))
     (port-count-lines! in)
-    ((lexer-src-pos
+    (define T
+      ((lexer-src-pos
       ((eof) 'EOF)
       (#\# 'HASH)
       ((:: #\" (:* (:~ #\")) #\") (token-STR (string-parse lexeme)))
       ((:: "#\"" (:* (:~ #\")) #\") (token-BTS (string-parse (substring lexeme 1))))
       
       ((:or #\tab
-            #\space
-            #\newline) (return-without-pos (mir-lex input-port)))
+            #\space) (return-without-pos (mir-lex input-port)))
+      
+      ((:: #\newline) (if (and LAST (not
+                                     (member (token-name (position-token-token LAST))
+                                             '(LBRACE LPAREN LBRACK SEMI))))
+                          'SEMI
+                          (return-without-pos (mir-lex input-port))))
       
       ((:or "fun" "if" "then" "for" "do" "import" "when" "end"
+            "let"
             
             "blk"
             
             "=" ":=" "..." "++"
             "==" "===" "!=" "!=="
-            "<" "<=" ">" ">=" "->" "<-" "else"
-            "+" "-" "*" "\\" "/" "%" ".+" ".-" ".*" "./") 
+            "<" "<=" ">" ">=" "->" "<-" "else" "__rsplice__"
+            "+" "-" "*" "\\" "/" "%" ":+" ":-" ":*" ":\\") 
           (string->symbol (string-upcase lexeme)))
       
       ((:- (:: (:or (:/ #\a #\z)
@@ -81,4 +93,6 @@
       ("[" 'LBRACK)
       ("]" 'RBRACK)
       ("$[" 'LTUP)
-      ) in)))
+      ) in))
+    (set! LAST T)
+    T))
