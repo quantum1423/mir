@@ -80,6 +80,9 @@
       
       
       ((:: (:+ (:or (:/ #\0 #\9)))) (token-INT (string->number lexeme)))
+      ((:: (:+ (:/ #\0 #\9))
+           #\.
+           (:+ (:/ #\0 #\9))) (token-INT (string->number lexeme)))
       
       (";" 'SEMI)
       ("," 'COMMA)

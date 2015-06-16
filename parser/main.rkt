@@ -27,7 +27,7 @@
 
 (define-macro (pos-lift a b expr)
   `(let ([poz-a ,(string->symbol (format "$~a-start-pos" a))]
-         [poz-b ,(string->symbol (format "$~a-end-pos" b))])
+            [poz-b ,(string->symbol (format "$~a-end-pos" b))])
      (datum->syntax
       #f
       ,expr
@@ -57,7 +57,7 @@
                  (format "Unexpected ~a" b))
              (datum->syntax
               #f
-              (path->string (FILENAME))
+              (if (FILENAME) (path->string (FILENAME)) "somewhere")
               (vector
                (FILENAME)
                (position-line poz-a)
@@ -93,31 +93,17 @@
     (<comma-last-list> ((<blk> COMMA <comma-list>) (cons $1 $3))
                        ((<blk> COMMA) (list $1))
                        (() empty))
-    (<type-comma-list> ((<type> COMMA <type-comma-list>) (cons $1 $3))
-                       ((<type>) (list $1))
-                       (() empty))
     ;; Comma list of ids
     (<id-comma-list> ((ID COMMA <comma-list>) (cons $1 $3))
                      ((ID) (list $1))
                      (() empty))
-    ;; Argument list
-    (<arg-list> ((<id> <type> COMMA <arg-list>) (cons (list $1 ': $2) $4))
-                ((<id> <type>) (list (list $1 ': $2)))
-                (() empty))
     ;; Expression or declaration
     (<expr-or-decl> ((<blk>) $1)
                     ((<declaration>) $1))
     
     ;; declarations
-    (<declaration> ((LET <definition>) $2))
-    (<definition> ((ID = <blk>)
+    (<declaration> ((ID = <blk>)
                     (pos-lift 1 3 `(define ,$1 ,$3)))
-                   ((ID <type> = <blk>)
-                    (pos-lift 1 4 `(define ,$1 : ,$2 ,$4)))
-                   ((<id> LPAREN <arg-list> RPAREN <type> = <blk>)
-                    (pos-lift 1 7 `(begin
-                                     (: ,$1 (-> ,@(map third $3) ,$5))
-                                     (define (,$1 . ,$3) : ,$5 ,$7))))
                    )
     
     (<id> ((ID) (pos-lift 1 1 $1)))
@@ -125,9 +111,9 @@
     ;; block-precedence expressions
     (<blk> ((IF <blk> THEN <blk> ELSE <blk>) (pos-lift 1 6
                                                        `(if ,$2 ,$4 ,$6)))
-                          
-           ((FUN LPAREN <arg-list> RPAREN <blk>) (pos-lift 1 5
-                                                             `(lambda (,$3) ,$5)))
+           
+           ((FUN LPAREN <id-comma-list> RPAREN <blk>) (pos-lift 1 5
+                                                                `(lambda ,$3 ,$5)))
            ((<expr>) $1))
     
     ;; most expressions
@@ -152,7 +138,7 @@
              ((LBRACE <semi-list> RBRACE) (pos-lift 1 3
                                                     `(let() . ,$2)))
              ((__RSPLICE__ LPAREN STR RPAREN) (pos-lift 1 4
-                                                    (read (open-input-string $3))))
+                                                        (read (open-input-string $3))))
              ((<literal>) $1))
     
     ;; literals
@@ -161,12 +147,6 @@
                ((LPAREN <comma-last-list> RPAREN) (pos-lift 1 3 `(vector ,$2)))
                ((LBRACK <comma-list> RBRACK) (pos-lift 1 3 `(list ,$2)))
                ((<id>) $1))
-    
-    ;; types
-    (<type> ((ID) (pos-lift 1 1 $1))
-            ((ID < <type-comma-list> >) (pos-lift 1 4 `(,$1 . ,$3)))
-            ((FUN LPAREN <type-comma-list> RPAREN <type>) (pos-lift 1 5
-                                                                    `(-> ,@$3 ,$5))))
     
     
     )))
