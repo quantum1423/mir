@@ -1,0 +1,3 @@
+#lang mir
+
+def Printf = __printf__

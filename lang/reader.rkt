@@ -8,15 +8,13 @@ mir
            [(color-lexer)
             (dynamic-require 'syntax-color/default-lexer
                              'default-lexer)]
+           [(drracket:default-filters)
+            (list (list "Mir Sources" "*.mir"))]
            [(drracket:indentation)
-            (with-output-to-file "/scratch/HAHA.txt"
-              #:exists 'append
-              (lambda()
-                (displayln "HAHAHAA")))
             (dynamic-require 'mir/private/indentation 'determine-spaces)]
            [else default]))
 
-
+(require racket/lazy-require)
 (require "../parser/main.rkt"
          "../parser/lexer.rkt"
          "../compiler.rkt"
@@ -42,7 +40,8 @@ mir
                                    (define lolo (open-input-string hoho))
                                    (car (mir-parse (lambda () (mir-lex lolo))))]))))))
           (cons (datum->syntax #f
-                               '(require mir)
+                               '(begin (require mir)
+                                       (provide (all-defined-out)))
                                #f)
                 (mir-parse
                  (lambda()

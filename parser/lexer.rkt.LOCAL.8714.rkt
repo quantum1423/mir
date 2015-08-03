@@ -10,11 +10,11 @@
 (define-empty-tokens syntax-tokens
   (EOF  
    LBRACE RBRACE LBRACK RBRACK LPAREN RPAREN
-   SEMI COMMA DOT COLON __RSPLICE__ LET DEF
+   SEMI COMMA DOT COLON __RSPLICE__ LET
    + - * / % :+ :- :* :/ ^ = := ++
    === < != !== == <= >= > -> \\  <-
    FUN FOR DO BLK
-   IF THEN ELSE USING
+   IF THEN ELSE
    END
    
    IMPORT
@@ -49,8 +49,8 @@
                           'SEMI
                           (return-without-pos (mir-lex input-port))))
       
-      ((:or "fun" "if" "then" "for" "do" "using" "when" "end"
-            "let" "def"
+      ((:or "fun" "if" "then" "for" "do" "import" "when" "end"
+            "let"
             
             "blk"
             

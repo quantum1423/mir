@@ -57,7 +57,7 @@
                  (format "Unexpected ~a" b))
              (datum->syntax
               #f
-              (if (FILENAME) (path->string (FILENAME)) "somewhere")
+              (if (FILENAME) (FILENAME) "")
               (vector
                (FILENAME)
                (position-line poz-a)
@@ -78,8 +78,8 @@
    (grammar
     ;; Program header things
     (<program> ((<import-declarations>
-                 <semi-list>) $2))
-    (<import-declarations> ((IMPORT STR SEMI <import-declarations>) (cons $2 $4))
+                 <semi-list>) (append $1 $2)))
+    (<import-declarations> ((USING STR SEMI <import-declarations>) (cons `(using ,$2) $4))
                            ((SEMI) empty)
                            (() empty))
     ;; Semicolon list of expressions or declarations
@@ -94,17 +94,21 @@
                        ((<blk> COMMA) (list $1))
                        (() empty))
     ;; Comma list of ids
-    (<id-comma-list> ((ID COMMA <comma-list>) (cons $1 $3))
-                     ((ID) (list $1))
+    (<id-comma-list> ((<id> COMMA <comma-list>) (cons $1 $3))
+                     ((<id>) (list $1))
                      (() empty))
     ;; Expression or declaration
     (<expr-or-decl> ((<blk>) $1)
                     ((<declaration>) $1))
     
     ;; declarations
-    (<declaration> ((ID = <blk>)
-                    (pos-lift 1 3 `(define ,$1 ,$3)))
-                   )
+    (<declaration> ((DEF <definition>) $2))
+    (<definition> ((<id> = <blk>)
+                   (pos-lift 1 3 `(define ,$1 ,$3)))
+                  ((<id> LPAREN <id-comma-list> RPAREN = <blk>)
+                   (pos-lift 1 6 `(begin
+                                    (define (,$1 . ,$3) ,$6))))
+                  )
     
     (<id> ((ID) (pos-lift 1 1 $1)))
     
@@ -112,8 +116,8 @@
     (<blk> ((IF <blk> THEN <blk> ELSE <blk>) (pos-lift 1 6
                                                        `(if ,$2 ,$4 ,$6)))
            
-           ((FUN LPAREN <id-comma-list> RPAREN <blk>) (pos-lift 1 5
-                                                                `(lambda ,$3 ,$5)))
+           ((LPAREN <id-comma-list> RPAREN -> <blk>) (pos-lift 1 5
+                                                               `(lambda ,$2 ,$5)))
            ((<expr>) $1))
     
     ;; most expressions
@@ -144,12 +148,13 @@
     ;; literals
     (<literal> ((STR) (pos-lift 1 1 $1))
                ((INT) (pos-lift 1 1 $1))
-               ((LPAREN <comma-last-list> RPAREN) (pos-lift 1 3 `(vector ,$2)))
-               ((LBRACK <comma-list> RBRACK) (pos-lift 1 3 `(list ,$2)))
+               ((LPAREN <comma-last-list> RPAREN) (pos-lift 1 3 `(__vector__ ,@$2)))
+               ((LBRACK <comma-list> RBRACK) (pos-lift 1 3 `(__list__ ,@$2)))
                ((<id>) $1))
     
     
     )))
+
 
 (define (string->ast x)
   (define chugger (pre-parse (open-input-string x)))
