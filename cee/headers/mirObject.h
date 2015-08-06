@@ -1,5 +1,4 @@
-#ifndef MIROBJECT_H
-#define MIROBJECT_H
+#pragma once
 
 #define MIRT_INT 0x00
 #define MIRT_FLO 0x01
@@ -21,6 +20,8 @@
 #define MIRT_STRING  0x2F
 
 #define MIRT_FUN 0xFF
+
+#include "mirContext.h"
 
 typedef struct _mirObject {
     unsigned char tag;
@@ -48,7 +49,6 @@ typedef struct _mirObject {
     } value;
 } mirObject;
 
-#endif
 
 #include "mirObject-integer-operations.h"
 #include "mirObject-float-operations.h"
